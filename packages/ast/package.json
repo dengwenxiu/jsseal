@@ -16,5 +16,16 @@
   },
   "bugs": "https://github.com/dengwenxiu/jsseal/issues",
   "homepage": "https://github.com/dengwenxiu/jsseal#readme",
-  "author": "dengwenxiu"
+  "author": "dengwenxiu",
+  "publishConfig": {
+    "access": "public"
+  },
+  "files": [
+    "dist/"
+  ],
+  "license": "MIT",
+  "description": "AST utilities for jsseal (parser/traverse/generator wrappers and path anchoring)",
+  "engines": {
+    "node": ">=18"
+  }
 }

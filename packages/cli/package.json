@@ -4,7 +4,7 @@
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "bin": {
-    "jsseal": "./dist/index.js"
+    "jsseal": "dist/index.js"
   },
   "dependencies": {
     "@jsseal/core": "0.6.0",
@@ -33,5 +33,8 @@
   },
   "bugs": "https://github.com/dengwenxiu/jsseal/issues",
   "homepage": "https://github.com/dengwenxiu/jsseal#readme",
-  "author": "dengwenxiu"
+  "author": "dengwenxiu",
+  "publishConfig": {
+    "access": "public"
+  }
 }

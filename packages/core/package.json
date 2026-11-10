@@ -19,5 +19,16 @@
   },
   "bugs": "https://github.com/dengwenxiu/jsseal/issues",
   "homepage": "https://github.com/dengwenxiu/jsseal#readme",
-  "author": "dengwenxiu"
+  "author": "dengwenxiu",
+  "publishConfig": {
+    "access": "public"
+  },
+  "files": [
+    "dist/"
+  ],
+  "license": "MIT",
+  "description": "Governor core for jsseal: verified identity-transform loop with probe API",
+  "engines": {
+    "node": ">=18"
+  }
 }

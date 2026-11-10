@@ -13,5 +13,16 @@
   },
   "bugs": "https://github.com/dengwenxiu/jsseal/issues",
   "homepage": "https://github.com/dengwenxiu/jsseal#readme",
-  "author": "dengwenxiu"
+  "author": "dengwenxiu",
+  "publishConfig": {
+    "access": "public"
+  },
+  "files": [
+    "dist/"
+  ],
+  "license": "MIT",
+  "description": "Obfuscation-family detection and triple extraction for jsseal",
+  "engines": {
+    "node": ">=18"
+  }
 }
