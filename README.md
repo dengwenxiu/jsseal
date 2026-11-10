@@ -119,7 +119,7 @@ packages/
 - **单路径覆盖**：锚库只验证采样输入的执行路径（`--forced-branches` 部分缓解）
 - **js-confuser ≥2.1 边界**：cff 动态 case 标签（已熔断保 PASS）、preset 的 dispatcher 间接化
 - **JSFuck escape 扩展**：基本字符集（可达字母/数字/括号/`.`）✅；引号、反斜杠等需 escape 技巧的字符未覆盖
-- **JSVMP**：领域公认空白
+- **JSVMP**：尚未支持，但路线已论证——超集指令集 + AI 翻译 + 锚库验证收口，见 [POSITIONING §5.2](docs/POSITIONING.md)
 - **Windows native**：暂不支持（自动降级 wasm 后端）
 
 ## 安全须知

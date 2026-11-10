@@ -183,5 +183,5 @@ jsseal probe 样本.js
 
 1. **单路径覆盖**：锚库只验证采样输入的执行路径（强制锚点部分缓解）
 2. **匿名函数 toString**：去换行免疫（token 级变化会被锚库拦截）
-3. **JSVMP**：领域公认空白
+3. **JSVMP**：尚未支持（devirtualize 路线论证见 [POSITIONING.md §5.2](POSITIONING.md)）
 4. **jsconfuser CFF**：✅ 已还原（AST 注入 + fall-through + 扰动过滤）

@@ -78,7 +78,7 @@ node packages/cli/dist/index.js 样本.js -o out.js --report report.json
 | 动态 CFF（顺序串运行时计算） | ✅ | br trace 执行序还原 |
 | packer（Dean Edwards）/ 嵌套 eval 链 / ctor 链 | ✅ | eval 拦截展开 |
 | JSFuck 全编码 | ✅ | fold-jsfuck 原子折叠（charset 纯函数求值）→ ctor 形态 A 静态内联；escape 扩展字符集（引号等）未覆盖 |
-| JSVMP 虚拟化 | ❌ | 领域公认空白 |
+| JSVMP 虚拟化 | ❌ | 外层常规混淆已可剥离；devirtualize 路线（超集指令集 + AI 翻译 + 锚库验证收口）见 docs/POSITIONING.md §5.2 |
 
 ## 5. 报告字段（JSON，camelCase）
 
