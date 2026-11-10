@@ -1,7 +1,24 @@
 # jsseal — 确定性封闭运行时 JS 反混淆器
 
-> **宪法**：只做确定性恒等变换。每一步变换（规则或 LLM）都在验证锚库上
-> 重放验证，行为恒等才提交，失败即回滚。**没有锚点就没有变换。**
+> **核心原理（一句话）**：反混淆的本质是等价改写，而程序等价性不可判定；
+> jsseal 在引擎级封闭一切非确定性（随机/时间/网络/时钟），把任意混淆程序
+> 连同环境变成**可重放的确定性纯函数**，从而把不可判定的等价性问题变成
+> 可机器验证的逐位比对——**每个变换都必须证明自己没有改变任何可观测行为，
+> 证明不了就回滚。没有锚点就没有变换。**
+
+```bash
+npm install && npx tsc -b && bash engine/build.sh && npm test
+node packages/cli/dist/index.js probe samples/obfuscator-io.js
+node packages/cli/dist/index.js samples/obfuscator-io.js -o out.js --report r.json
+```
+
+**浏览器演练场**（wasm 后端，完整管线在浏览器内运行）：
+
+```bash
+npm run -w @jsseal/web start    # 构建 + 本地服务 → http://127.0.0.1:8642
+```
+
+![playground](docs/images/playground.png)
 
 ```bash
 npm install && npx tsc -b && bash engine/build.sh && npm test
@@ -23,10 +40,12 @@ npm run -w @jsseal/web start    # 构建 + 本地服务 → http://127.0.0.1:864
 | [方法论原理](docs/PRINCIPLES.md) | 环境封闭/锚库验证/恒等变换/污点传播 |
 | [构建指南](docs/BUILDING.md) | 多平台构建/引擎架构/排障 |
 | [插件体系](docs/PLUGINS.md) | 变换插件 API/LLM Provider/测试指南 |
-| [架构日志](docs/ARCHITECTURE.md) | 24 节实现记录 + 16 条踩坑 |
+| [架构日志](docs/ARCHITECTURE.md) | 28 节实现记录 + 全部踩坑 |
 | [AI Agent 指南](AGENTS.md) | 面向 AI 的使用说明 |
+| [贡献指南](CONTRIBUTING.md) | 开发纪律/变换开发规则/测试要求 |
+| [变更日志](CHANGELOG.md) | 版本历史 |
 
-## 实战成绩（3 个真实野外样本全部 ✅）
+## 实战成绩（4 个样本全部 ✅，3 个来自真实野外）
 
 | 样本 | 家族 | 大小变化 | 还原效果 |
 |---|---|---|---|
@@ -56,7 +75,7 @@ packages/
   runtime/        封闭内核（sealing prelude + 三后端）
   anchors/        锚库（行为恒等 + 健康哨兵 + 分支指纹迁移）
   detector/       家族识别 + 三件套提取
-  transforms/     22 个恒等变换（含 LLM 重命名）
+  transforms/     20 个内置恒等变换（+ 可选 LLM 重命名）
   core/           governor（验证循环/提交回滚）+ probe
   cli/            jsseal 命令行
   web/            浏览器演练场（单文件 bundle，wasm 内嵌）
@@ -82,6 +101,13 @@ packages/
 - **JSFuck escape 扩展**：基本字符集（可达字母/数字/括号/`.`）✅；引号、反斜杠等需 escape 技巧的字符未覆盖
 - **JSVMP**：领域公认空白
 - **Windows native**：暂不支持（自动降级 wasm 后端）
+
+## 安全须知
+
+jsseal 处理的是**不可信代码**。虽然封闭运行时（QuickJS 沙箱 + 种子磁带 + gas 限额 +
+网络 VCR）本身就是在隔离环境中执行样本，但仍建议：在容器/虚拟机中运行 CLI；
+不要把 `--net-fixture` 里的真实凭据提交进仓库；`report.json` 可能包含样本解出的
+明文（密钥、接口地址），公开分享前先脱敏。
 
 ## 许可
 

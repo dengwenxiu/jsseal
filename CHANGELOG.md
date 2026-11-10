@@ -1,0 +1,38 @@
+# Changelog
+
+## 0.5.0 (2026-11-10)
+
+首个公开版本。核心方法论：**环境封闭 → 采样造锚 → 渐进恒等变换**——引擎级
+封闭一切非确定性（随机/时间/网络/时钟），把混淆程序变成可重放的确定性纯函数，
+每个变换都在锚库上验证行为恒等，失败即回滚。
+
+### 引擎（quickjs-ng fork，自由大改）
+
+- 四类种子磁带（random/date/time/crypto）录制与重放，guest 完全不可觉察
+- 虚拟时钟（setTimeout/Promise/rAF 确定性调度）、网络 VCR（罐头响应 + fixture 注入）
+- gas 限额（确定性资源上限）、五类 trace 事件（call/sret/cret/br/go）+ 白名单过滤
+- 引擎级污点传播（cret 感染标记：输出依赖不稳定变量即不可常量化）
+- 分支强制（第 k 个执行的条件分支取反，多路径覆盖验证）
+
+### 反混淆管线（20 个内置变换 + 可选 LLM 重命名）
+
+- **obfuscator.io 全配置**：字符串池冻结/解码内联/查找表/CFF/死代码/代理内联/
+  反篡改剥离——官方混淆器 15 选项组合矩阵全 PASS + 明文可见
+- **sojson v5–v7 / jsjiami**：池终态固化 + 通用轮转器识别（101K 样本 → 41B）
+- **js-confuser 2.1.3**：xor 分组唯一匹配回填、Base91 stringConcealing
+  （cret trace 事实 + 跨锚点投票）、状态机 CFF 还原
+- **JSFuck 全编码**：charset 子树封闭求值折叠 → ctor 链静态内联（3K → 24B）
+- packer / 嵌套 eval 链 / ctor 链 / 动态 CFF（运行时执行序还原）
+
+### 工具链
+
+- CLI：`jsseal <input>` / `jsseal probe`（侦察模式：家族/console/evalLog/
+  netLog/envMisses/字符串池预览）+ JSON 报告
+- 浏览器演练场（wasm 单文件 bundle，完整管线在浏览器内运行）
+- LLM 重命名插件（mock/openai/anthropic/ollama，"LLM only suggests names"）
+- 编程 API：`@jsseal/core` 的 `deobfuscate()` / `probe()`
+
+### 测试
+
+98 个测试（单元 + e2e + 双混淆器矩阵回归），CI 五平台矩阵
+（mac arm/x64、linux x64/arm64 native；Windows wasm 降级）。

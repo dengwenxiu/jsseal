@@ -13,11 +13,12 @@ node packages/cli/dist/index.js --help     # 所有命令与选项
 
 若 dist 缺失或引擎需重建（贡献者）：
 ```bash
-npm install && npx tsc -b && bash engine/build.sh && npm test   # 72+ 测试应全绿
+npm install && npx tsc -b && bash engine/build.sh && npm test   # 98 测试应全绿
 ```
 
 - native 引擎不可用时自动降级 wasm 后端（trace/污点/强制分支等高级特性仅 native 有）
 - **产物务必用 `-o` 指定输出路径**——默认写到输入同目录（`<input>.deobf.js`），会污染样本目录
+- 也可以用浏览器演练场做快速人工验证：`npm run -w @jsseal/web start` → http://127.0.0.1:8642（wasm 后端，与 CLI 同一管线）
 
 ## 2. 两个命令
 
@@ -60,12 +61,12 @@ node packages/cli/dist/index.js 样本.js -o out.js --report report.json
 
 | 家族 | 反混淆 | 说明 |
 |---|---|---|
-| obfuscator.io 全配置（RC4/包装层/死代码/CFF/selfDefending） | ✅ | 明文回归+行为恒等；野外样本实测 20K→8.4K |
+| obfuscator.io 全配置（RC4/包装层/死代码/CFF/selfDefending） | ✅ | **官方混淆器矩阵 15/15**（全选项组合 PASS+明文可见+零回滚） |
 | sojson v5–v7 / jsjiami | ✅ | 池 5501 条固化 + 轮转器删除 + inline-decoder 全通过（M3.5 攻坚成功） |
+| js-confuser 2.1.3 | ✅ | Base91 stringConcealing + xor 分组回填 + 状态机 CFF；preset 的 dispatcher 间接化为已知边界（保证 PASS，明文部分可见） |
 | 动态 CFF（顺序串运行时计算） | ✅ | br trace 执行序还原 |
-| packer（Dean Edwards）/ 嵌套 eval 链 / ctor 链（JSFuck 核心形态） | ✅ | eval 拦截展开 |
-| jsconfuser | ✅ | xor 字符串解密 + 状态机 CFF 还原（实测 10K→3.2K） |
-| JSFuck 全编码 | 🔶 | evalLog 记录；回填覆盖有限 |
+| packer（Dean Edwards）/ 嵌套 eval 链 / ctor 链 | ✅ | eval 拦截展开 |
+| JSFuck 全编码 | ✅ | fold-jsfuck 原子折叠（charset 纯函数求值）→ ctor 形态 A 静态内联；escape 扩展字符集（引号等）未覆盖 |
 | JSVMP 虚拟化 | ❌ | 领域公认空白 |
 
 ## 5. 报告字段（JSON，camelCase）
@@ -92,7 +93,7 @@ engine/addon/     N-API addon（C）——宿主编排全在此（改后必须 b
 packages/runtime/ 封闭内核（sealing prelude + 三后端）
 packages/anchors/ 锚库（行为恒等比较 + 健康哨兵）
 packages/detector/家族识别 + 三件套提取
-packages/transforms/ 16 个恒等变换（每文件一个，接口见 types.ts）
+packages/transforms/ 20 个内置恒等变换（每文件一个，接口见 types.ts；矩阵回归 matrix.obfuscators.test.ts）
 packages/core/    governor（验证循环/提交回滚）+ probe
 docs/ARCHITECTURE.md 架构与全部踩坑记录（改代码前必读）
 samples/          真实样本（sojsonv7 / 野外 obfuscator.io / jsconfuser）
