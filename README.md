@@ -42,6 +42,7 @@ npm run -w @jsseal/web start    # 构建 + 本地服务 → http://127.0.0.1:864
 |---|---|
 | [CLI 指南](docs/CLI-GUIDE.md) | 命令/选项/报告字段/常见工作流 |
 | [方法论原理](docs/PRINCIPLES.md) | 环境封闭/锚库验证/恒等变换/污点传播 |
+| [先进性与定位](docs/POSITIONING.md) | 时代坐标/理论创新/与 AST 工具及 LLM 的对比 |
 | [构建指南](docs/BUILDING.md) | 多平台构建/引擎架构/排障 |
 | [插件体系](docs/PLUGINS.md) | 变换插件 API/LLM Provider/测试指南 |
 | [架构日志](docs/ARCHITECTURE.md) | 28 节实现记录 + 全部踩坑 |
@@ -69,6 +70,21 @@ npm run -w @jsseal/web start    # 构建 + 本地服务 → http://127.0.0.1:864
 | 动态 CFF（运行时执行序） | ✅ |
 | JSFuck 全编码（[]()!+ 原子折叠） | ✅ |
 | JSVMP 虚拟化 | ❌ |
+
+## 先进性：三个时代，一个跃迁
+
+| 时代 | 范式 | 正确性 |
+|---|---|---|
+| AST 时代（~2018，synchrony/webcrack/REstringer） | 静态规则匹配，语法层、局部 | 无保证——规则错了无声产出错码 |
+| 引擎时代（**jsseal**） | 环境封闭成纯函数 → 全局语义优化 | **构造性恒等**：每次变换锚库逐位验证，失败即回滚 |
+| AI 时代（CASCADE 等） | LLM 改写/LLM+IR | 依赖 LLM 可靠性，无行为等价证明 |
+
+**AI 时代为什么还需要 jsseal**（详见 [POSITIONING.md](docs/POSITIONING.md)）：
+
+1. **省 token**——常见混淆由确定性变换零成本清除，AI 只分析残余
+2. **不犯错的保证先于验证存在**——AI 改错只能事后发现（可能一直发现不了）；jsseal 的等价性由锚库构造性保证
+3. **AI 分析基座**——probe/trace 输出代码的*性质*（池明文/调用事实/污点/执行序），比混淆文本多几个维度
+4. **（路线图）LLM 驱动变换 API**——LLM 提案，governor 裁决
 
 ## 架构
 
