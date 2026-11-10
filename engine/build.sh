@@ -26,16 +26,29 @@ if [ ! -f "$NODE_INCLUDE/node_api.h" ]; then
 fi
 
 echo "== node headers: $NODE_INCLUDE"
+
+# 平台/编译器指纹：变化（如 macOS 构建后进 Linux 容器/CI 复用挂载目录）则
+# 清空缓存——跨平台复用旧 .o 会静默产出坏 archive（CI 实测：archive has no index）
+STAMP="$BUILD/.stamp"
+STAMP_VAL="$(uname -s)-$(uname -m)-$(cc --version 2>/dev/null | head -1)"
+if [ -f "$STAMP" ] && [ "$(cat "$STAMP" 2>/dev/null)" != "$STAMP_VAL" ]; then
+  echo "== 环境变化（平台/编译器不同），清空 build 缓存重编"
+  rm -rf "$BUILD"
+fi
 mkdir -p "$BUILD" "$OUT_DIR"
+echo "$STAMP_VAL" > "$STAMP"
 
 # 1) 编译 quickjs 核心（缓存：源码不变则跳过）
+# -fPIC 必须加：Linux cc -shared 链接要求全部目标文件为 PIC
+# （macOS -bundle 不要求，此前漏加在 mac 上测不出来；CI ubuntu 实测
+#   R_AARCH64_ADR_PREL_PG_HI21 ... recompile with -fPIC）
 CORE_SRCS=(quickjs.c libregexp.c libunicode.c dtoa.c)
 CORE_OBJS=()
 for src in "${CORE_SRCS[@]}"; do
   obj="$BUILD/${src%.c}.o"
   if [ ! -f "$obj" ] || [ "$QJS/$src" -nt "$obj" ]; then
     echo "== cc $src"
-    cc -c -O2 -I"$QJS" -D_GNU_SOURCE "$QJS/$src" -o "$obj"
+    cc -c -O2 -fPIC -I"$QJS" -D_GNU_SOURCE "$QJS/$src" -o "$obj"
   fi
   CORE_OBJS+=("$obj")
 done

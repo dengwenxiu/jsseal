@@ -68,8 +68,12 @@ describe('e2e · obfuscator.io 家族', () => {
       // M2.4：freeze-string-array（池终态固化 + 删 rotate，消除 decoder 时变性）
       // 解锁 decoder-lookup-table（运行时事实查表），全开样本明文直接回归可见
       expect(report.applied.some((a) => a.name === 'freeze-string-array')).toBe(true);
-      expect(report.applied.some((a) => a.name === 'decoder-lookup-table')).toBe(true);
-      expect(report.finalCode).toContain('SECRET_KEY_123');
+      // decoder-lookup-table 与其解锁的明文回归依赖 cret trace（native 专属）；
+      // wasm 后端仍必须 PASS（恒等性是全平台硬约束），仅还原度断言豁免
+      if (isEngineAvailable()) {
+        expect(report.applied.some((a) => a.name === 'decoder-lookup-table')).toBe(true);
+        expect(report.finalCode).toContain('SECRET_KEY_123');
+      }
       const mangleBefore = (code.match(/_0x[0-9a-fA-F]+/g) ?? []).length;
       const mangleAfter = (report.finalCode.match(/_0x[0-9a-fA-F]+/g) ?? []).length;
       expect(report.applied.some((a) => a.name === 'inline-decoder')).toBe(true);
@@ -172,7 +176,7 @@ dynDescribe('e2e · 动态 CFF（M2.5 执行序探针）', () => {
   );
 });
 
-describe('e2e · forced execution（G.3 多路径覆盖）', () => {
+nativeDescribe('e2e · forced execution（G.3 多路径覆盖）', () => {
   it(
     '悬空引用逃逸被强制锚点捕获（单路径覆盖局限的正解实测）',
     async () => {

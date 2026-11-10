@@ -11,6 +11,7 @@ import { describe, expect, it } from 'vitest';
 import JavaScriptObfuscator from 'javascript-obfuscator';
 import JsConfuser from 'js-confuser';
 import { deobfuscate } from '@jsseal/core';
+import { isEngineAvailable } from '@jsseal/engine-native';
 
 const BUSINESS = `
 const API_HOST = 'https://api.example.com';
@@ -65,9 +66,12 @@ describe('矩阵 · javascript-obfuscator 4.2.2', () => {
 });
 
 describe('矩阵 · js-confuser 2.1.3', () => {
+  // jsconfuser-strings 的还原依赖 cret trace（native 专属）；wasm 后端仍必须
+  // PASS（恒等性是全平台硬约束），仅 SECRET 明文断言按后端动态豁免
+  const native = isEngineAvailable();
   const cases: Array<[string, Record<string, unknown>, boolean]> = [
     // [名, 选项, SECRET 必须可见]（false = 已知边界：dispatcher 间接化 / cff 动态 case）
-    ['stringConcealing(Base91)', { stringConcealing: true }, true],
+    ['stringConcealing(Base91)', { stringConcealing: true }, native],
     ['stringEncoding', { stringEncoding: true }, true],
     ['dispatcher', { dispatcher: true }, true],
     ['objectExtraction', { objectExtraction: true }, true],
