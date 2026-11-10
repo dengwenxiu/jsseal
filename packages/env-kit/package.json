@@ -1,0 +1,8 @@
+{
+  "name": "@jsseal/env-kit",
+  "version": "0.5.0",
+  "description": "环境对齐认知库与审计器——环境即封闭边界，异常环境会让采样走偏",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "license": "MIT"
+}

@@ -99,6 +99,7 @@ packages/
   core/           governor（验证循环/提交回滚）+ probe
   cli/            jsseal 命令行
   web/            浏览器演练场（单文件 bundle，wasm 内嵌）
+  env-kit/        环境对齐认知库与审计器（环境即封闭边界）
 ```
 
 ## 核心能力
@@ -114,6 +115,7 @@ packages/
 | LLM 重命名 | mock/openai/anthropic/ollama 四后端（"LLM only suggests names"） |
 | LLM 改写提案 | llm-rewrite：LLM 直接提案函数改写，governor 锚库裁决（mock/openai/anthropic/ollama/custom） |
 | 环境探针 | 缺失 API 自动报告（envMisses/netMisses/missingEnv 三条闭环） |
+| 环境认知库 | @jsseal/env-kit：43 条可校验认知（存在性/跨字段一致性/行为级）+ 审计器 + 真机采集（环境即封闭边界，当前对齐 42/43） |
 
 ## 已知限制
 

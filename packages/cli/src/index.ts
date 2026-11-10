@@ -198,6 +198,10 @@ async function probeMain(input: string, rest: string[]): Promise<void> {
   }
   if (r.run.netMisses.length) L.push(`缺流量 fixture:  ${r.run.netMisses.slice(0, 5).join(', ')}`);
   const envMiss = Object.entries(r.run.envMisses).sort((a, b) => b[1] - a[1]);
+  if (r.envAudit) {
+    const a = r.envAudit;
+    process.stdout.write(`环境审计: 对齐 ${a.aligned}/${a.total}（缺口 high=${a.highOpen} medium=${a.mediumOpen}）` + (a.failures.length ? ` — 首个: ${a.failures[0].id}` : '') + '\n');
+  }
   if (envMiss.length) L.push(`缺环境 API:      ${envMiss.slice(0, 10).map(([k, n]) => `${k}×${n}`).join(', ')}`);
   if (Object.keys(r.run.storage).length) L.push(`storage 写入:    ${JSON.stringify(r.run.storage).slice(0, 160)}`);
   if (r.warnings.length) {
@@ -211,8 +215,35 @@ async function probeMain(input: string, rest: string[]): Promise<void> {
   process.stdout.write(L.join('\n') + '\n');
 }
 
+async function envAuditMain(input: string, json: boolean): Promise<void> {
+  const { readFileSync } = await import('node:fs');
+  const { auditEnv } = await import('@jsseal/env-kit');
+  const audit = await auditEnv({ code: readFileSync(input, 'utf8'), backend: 'native' });
+  if (json) {
+    process.stdout.write(JSON.stringify(audit, null, 2) + '\n');
+    return;
+  }
+  process.stdout.write('=== 环境审计（认知库对齐）===\n');
+  process.stdout.write(
+    `对齐: ${audit.aligned}/${audit.total}  缺口: high=${audit.highOpen} medium=${audit.mediumOpen} low=${audit.lowOpen}\n`,
+  );
+  for (const f of audit.failures) {
+    process.stdout.write(`  [${f.severity}][${f.kind}] ${f.id} — ${f.desc}\n`);
+  }
+  if (audit.failures.length === 0) process.stdout.write('  （认知库全量对齐）\n');
+  process.stdout.write('认知库维护: packages/env-kit/src/knowledge.ts；真机采集: buildCaptureScript()\n');
+}
+
 async function main(): Promise<void> {
   const raw = process.argv.slice(2);
+  if (raw[0] === 'env-audit') {
+    if (!raw[1]) {
+      process.stderr.write('usage: jsseal env-audit <input.js> [--json]\n');
+      process.exit(2);
+    }
+    await envAuditMain(raw[1], raw.includes('--json'));
+    return;
+  }
   if (raw[0] === 'probe') {
     if (!raw[1]) {
       process.stderr.write('usage: jsseal probe <input.js> [--entry name] [--args json] [--net-fixture u=v] [--json]\n');

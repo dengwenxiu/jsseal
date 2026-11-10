@@ -10,6 +10,11 @@
   （引用须文本位置在声明后，防提格语义改变）——解锁非字面量调用点的折叠
 - 新变换 `prune-dead-decls`（通用死声明清理）：模块顶层无人引用的函数/变量
   不动点清理；eval/new Function 与全局对象动态访问（globalThis[k]）时放弃
+- 新包 `@jsseal/env-kit`（环境对齐认知库，方向：补环境）：环境即封闭边界，
+  风控 SDK 环境感知异常 → 非预期分支 → 采样走偏。43 条可校验认知（存在性/
+  跨字段一致性/行为级内部槽）+ 封闭运行时审计器 + 真机采集脚本生成；
+  CLI `env-audit` 子命令 + probe 集成。prelude 环境层升级原型+getter+内部槽
+  拟真形态（`[object Navigator]`），自审 30/43 → 42/43
 - 新变换 `llm-rewrite`（LLM 驱动改写提案，POSITIONING §4.4 落地）：LLM
   直接提案函数改写，governor 锚库裁决（实测恶意提案被回滚）；provider
   mock/openai/anthropic/ollama/custom（任意 LLM 服务注入点）

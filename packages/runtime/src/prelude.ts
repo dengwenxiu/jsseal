@@ -325,12 +325,29 @@ __jsseal.runNextTimer = function () {
 };
 
 // ---------- 环境模板 ----------
+if (typeof globalThis.devicePixelRatio === 'undefined') globalThis.devicePixelRatio = 2;
+if (typeof globalThis.innerWidth === 'undefined') { globalThis.innerWidth = 1440; globalThis.innerHeight = 855; }
+if (typeof globalThis.outerWidth === 'undefined') { globalThis.outerWidth = 1440; globalThis.outerHeight = 900; }
+if (typeof globalThis.indexedDB === 'undefined') { globalThis.indexedDB = { open: function () { return { set onsuccess(f) {}, set onerror(f) {}, set onupgradeneeded(f) {} }; }, deleteDatabase: function () {} }; }
+if (typeof globalThis.Notification === 'undefined') {
+  var __Notif = function Notification(title, options) { this.title = title; };
+  __Notif.permission = 'default';
+  __Notif.requestPermission = function () { return Promise.resolve('default'); };
+  globalThis.Notification = __Notif;
+}
+if (typeof globalThis.chrome === 'undefined' && __cfg.env.userAgent.indexOf('Chrome') >= 0 && __cfg.env.userAgent.indexOf('Edg/') < 0) {
+  // Chrome 特有对象：UA 声称 Chrome 而无 window.chrome 是第一代 headless 特征
+  globalThis.chrome = { app: { isInstalled: false, getDetails: function () { return null; }, getIsInstalled: function () { return false; } } };
+}
 if (typeof globalThis.window === 'undefined') globalThis.window = globalThis;
 if (typeof globalThis.self === 'undefined') globalThis.self = globalThis;
 if (typeof globalThis.global === 'undefined') globalThis.global = globalThis;
 if (typeof globalThis.navigator === 'undefined' || !globalThis.navigator.__jsseal) {
-  globalThis.navigator = {
-    __jsseal: true,
+  // 拟真形态（认知库 behavior 级条目驱动）：原型 getter + Symbol.toStringTag
+  // 内部槽——平面对象会泄漏 '[object Object]' 与断裂原型链（headless 经典检测）
+  var __NavCtor = function Navigator() {};
+  Object.defineProperty(__NavCtor.prototype, Symbol.toStringTag, { value: 'Navigator', configurable: true });
+  var __navProps = {
     userAgent: __cfg.env.userAgent,
     appVersion: __cfg.env.userAgent.replace(/^Mozilla\\//, ''),
     language: __cfg.env.language,
@@ -349,10 +366,25 @@ if (typeof globalThis.navigator === 'undefined' || !globalThis.navigator.__jssea
     product: 'Gecko',
     productSub: '20030107',
     connection: { effectiveType: '4g', rtt: 50, downlink: 10 },
+    userAgentData: { brands: [{ brand: 'Chromium', version: '131' }, { brand: 'Not_A Brand', version: '24' }], mobile: false, platform: 'macOS' },
+    permissions: { query: function (d) { return Promise.resolve({ state: 'default', name: d && d.name }); } },
   };
+  Object.keys(__navProps).forEach(function (k) {
+    var v = __navProps[k];
+    Object.defineProperty(__NavCtor.prototype, k, { get: function () { return v; }, configurable: true });
+  });
+  globalThis.navigator = Object.create(__NavCtor.prototype);
+  Object.defineProperty(globalThis.navigator, '__jsseal', { value: true, configurable: true });
 }
 if (typeof globalThis.screen === 'undefined') {
-  globalThis.screen = { width: 1920, height: 1080, availWidth: 1920, availHeight: 1040, colorDepth: 24, pixelDepth: 24 };
+  var __ScrCtor = function Screen() {};
+  Object.defineProperty(__ScrCtor.prototype, Symbol.toStringTag, { value: 'Screen', configurable: true });
+  var __scrProps = { width: 1920, height: 1080, availWidth: 1920, availHeight: 1040, colorDepth: 24, pixelDepth: 24 };
+  Object.keys(__scrProps).forEach(function (k) {
+    var v = __scrProps[k];
+    Object.defineProperty(__ScrCtor.prototype, k, { get: function () { return v; }, configurable: true });
+  });
+  globalThis.screen = Object.create(__ScrCtor.prototype);
 }
 if (typeof globalThis.location === 'undefined') {
   globalThis.location = {

@@ -185,3 +185,44 @@ jsseal probe 样本.js
 2. **匿名函数 toString**：去换行免疫（token 级变化会被锚库拦截）
 3. **JSVMP**：尚未支持（devirtualize 路线论证见 [POSITIONING.md §5.2](POSITIONING.md)）
 4. **jsconfuser CFF**：✅ 已还原（AST 注入 + fall-through + 扰动过滤）
+
+## 8. 环境对齐与认知库（@jsseal/env-kit）
+
+**环境即封闭边界本身。** 风控对抗 SDK 对环境感知极其敏感——一旦发现异常
+（字段缺失/形态不对/跨字段矛盾）就走非预期分支，锚库采样到的就是那条
+"错的路"，后续所有优化跟着走偏。因此封闭环境必须尽可能与普通浏览器对齐。
+
+**但"正常性"不可证明，只是认知。** 我们无法穷举风控看什么——只能持续
+维护认知库（`packages/env-kit/src/knowledge.ts`）。每条认知必须：
+
+- 可机器校验（`expr` 在封闭运行时内求值，true=对齐）
+- 带风控语义（`desc`：为什么看它/它泄漏什么）
+- 带泄漏分级（`severity`：修复优先级）
+
+### 三类条目
+
+| 类别 | 检查什么 | 例 |
+|---|---|---|
+| 存在性/形态 | 单字段类型与典型值域 | `navigator.webdriver === false` |
+| 跨字段一致性 | 单字段可伪造，**矛盾难伪造**——风控的强项 | UA 含 Chrome → `window.chrome` 存在；UA 含 Mac → `platform === 'MacIntel'` |
+| 行为级 | 内部槽/原型链/getter 位置 | `toString.call(navigator) === '[object Navigator]'`（平面对象 stub 的天敌） |
+
+### 三个工具与两条闭环
+
+```
+knowledge（认知库）─→ audit（审计器：封闭运行时内求值，样本执行后=风控实际看到的环境）
+       └───────→ capture（真机采集脚本：认知库键派生，控制台粘贴即下载快照）
+```
+
+- **认知闭环**：真机快照 → 补认知库 → 审计验证 → 缺口归零
+- **开发闭环**：审计暴露缺口 → prelude 补齐（原型+getter+内部槽拟真形态）→ 审计转绿
+  （首发实测：30/43 → 42/43，3 个 high 缺口清零；唯一遗留 Intl 时区为引擎边界）
+
+与 envMisses 的分工：envMisses 是"样本摸到了什么缺"（样本驱动、事后）；
+envAudit 是"环境本身对不对"（认知驱动、事前/事后皆可）。
+
+### 维护
+
+新认知 = 在 knowledge.ts 加一条（id/desc/severity/expr/capture），测试自动
+校验 expr 可解析；`jsseal env-audit <样本>` 随时可审。真机采集脚本由
+`buildCaptureScript()` 从同一认知库生成——单一事实源。

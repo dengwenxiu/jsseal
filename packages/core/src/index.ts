@@ -413,6 +413,8 @@ export interface ProbeReport {
   };
   /** 字符串池预览（decoded=true 为解码明文；false 为编码态原始池——双参 RC4 等无法单参扫描） */
   pool?: { decoded: boolean; items: string[] };
+  /** 环境审计（认知库对齐情况：环境即封闭边界，缺口=风控感知面） */
+  envAudit?: import('@jsseal/env-kit').AuditReport;
   missingEnv: Record<string, number>;
   /** 还原度告警：验证 PASS 不代表还原成功（外部 Agent 实测教训） */
   warnings: string[];
@@ -505,6 +507,13 @@ export async function probe(opts: DeobfuscateOptions): Promise<ProbeReport> {
   } catch {
     /* ignore */
   }
+  let envAudit: import('@jsseal/env-kit').AuditReport | undefined;
+  try {
+    const { auditEnv } = await import('@jsseal/env-kit');
+    envAudit = await auditEnv({ code: opts.code, backend, timeoutMs: opts.timeoutMs });
+  } catch {
+    /* 审计失败不阻塞侦察 */
+  }
   const warnings: string[] = [];
   if (detection.obfuscatorIO && detection.obfuscatorIO.stringArrayNames.length > 0 && !pool?.decoded) {
     warnings.push(
@@ -513,6 +522,7 @@ export async function probe(opts: DeobfuscateOptions): Promise<ProbeReport> {
   }
 
   return {
+    envAudit,
     family: detection.family,
     confidence: detection.confidence,
     features: detection.features,

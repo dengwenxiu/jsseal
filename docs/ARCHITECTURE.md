@@ -782,3 +782,29 @@ cff-dynamic fixture 产物从"顺序正确的语句序列"进一步折叠为**�
 - e2e 双侧证明：恒等提案被应用（产物含 `+=` 且 PASS）；**恶意提案**
   （custom 注入 `return x + t + 100` 改行为）被锚库回滚、产物不含恶意码、
   终验 PASS——裁决侧的实证
+
+## 32. 环境对齐认知库 env-kit（2026-11-10，方向：补环境）
+
+动机（用户洞察）：**环境即封闭边界本身**——风控 SDK 对环境感知敏感，异常
+环境 → 非预期分支 → 锚库采样走偏 → 优化跟着走偏。而"环境正常性不可证明，
+只能维护认知"——故架构为认知库而非实现。
+
+- `knowledge.ts`：43 条结构化认知（id/category/severity/desc/expr/capture），
+  三类：存在性/跨字段一致性（UA↔platform↔chrome↔plugins 互证——风控强项，
+  单字段可伪造矛盾难伪造）/行为级（`[object Navigator]` 内部槽、原型链、
+  getter 位置——平面对象 stub 的天敌）
+- `audit.ts`：条目编译成 JS 在封闭运行时求值（样本执行后=风控实际看到的
+  环境）；`capture.ts`：真机采集脚本从同一认知库派生（单一事实源）
+- CLI `env-audit` + probe 集成（envAudit 字段/人类可读摘要）
+
+### prelude 环境层升级（拟真形态）
+平面对象 → `Object.create(Ctor.prototype)` + 原型 getter +
+`Symbol.toStringTag` 内部槽 + `window.chrome`（Chrome 系 UA）+ 视口/DPR/
+Notification/permissions/userAgentData/indexedDB。
+自审 30/43 → **42/43**（3 个 high 清零；遗留 Intl 时区=quickjs 引擎边界，诚实留档）。
+
+### 两个意外收获
+- **sloppy 赋值静默失败与真浏览器一致**：`navigator.webdriver = true` 在原型
+  getter 无 setter 时不生效不抛错——拟真形态的副作用恰好是浏览器真行为，
+  篡改须 defineProperty（测试如实改为 defineProperty 形态）
+- 审计器天然测出"风控实际看到的环境"——样本改环境的副作用可观测
