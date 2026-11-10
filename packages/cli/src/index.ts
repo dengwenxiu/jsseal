@@ -198,6 +198,14 @@ async function probeMain(input: string, rest: string[]): Promise<void> {
   }
   if (r.run.netMisses.length) L.push(`缺流量 fixture:  ${r.run.netMisses.slice(0, 5).join(', ')}`);
   const envMiss = Object.entries(r.run.envMisses).sort((a, b) => b[1] - a[1]);
+  if (r.accessMap && Object.keys(r.accessMap).length) {
+    const entries = Object.entries(r.accessMap).sort((a, b) => b[1] - a[1]).slice(0, 8);
+    process.stdout.write(`访问图谱 (top8): ${entries.map(([k, n]) => `${k}×${n}`).join('  ')}\n`);
+  }
+  if (r.debugLog?.length) {
+    process.stdout.write(`插桩输出 (${r.debugLog.length}):\n`);
+    for (const d of r.debugLog.slice(0, 10)) process.stdout.write(`  [dbg] ${d}\n`);
+  }
   if (r.envAudit) {
     const a = r.envAudit;
     process.stdout.write(`环境审计: 对齐 ${a.aligned}/${a.total}（缺口 high=${a.highOpen} medium=${a.mediumOpen}）` + (a.failures.length ? ` — 首个: ${a.failures[0].id}` : '') + '\n');

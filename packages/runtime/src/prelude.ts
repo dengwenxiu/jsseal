@@ -30,6 +30,8 @@ export interface PreludeConfig {
   engineSeeds?: boolean;
   /** 环境探针：Proxy 包装 stub 对象，记录缺失属性访问（自动报缺数据源） */
   envProbe?: boolean;
+  /** 访问图谱：记录 stub 对象的全部属性访问（SDK 实际探测面的完整地图） */
+  envTrace?: boolean;
 }
 
 export function buildPrelude(cfg: PreludeConfig): string {
@@ -40,6 +42,7 @@ export function buildPrelude(cfg: PreludeConfig): string {
     pins: cfg.pins,
     engineSeeds: cfg.engineSeeds === true,
     envProbe: cfg.envProbe === true,
+    envTrace: cfg.envTrace === true,
     netFixtures: cfg.netFixtures || {},
     env: {
       userAgent: 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36',
@@ -53,11 +56,26 @@ export function buildPrelude(cfg: PreludeConfig): string {
 var __cfg = ${data};
 var __jsseal = (typeof globalThis.__jsseal !== 'undefined') ? globalThis.__jsseal : (globalThis.__jsseal = {
   ok: true, ret: undefined, thrown: undefined,
-  console: [], storage: {}, storage2: {}, envMisses: {}, evalLog: [],
+  console: [], storage: {}, storage2: {}, envMisses: {}, envAccesses: {}, evalLog: [],
+  debug: [],
   consumed: { random: 0, date: 0, time: 0, crypto: 0 },
   tapes: __cfg.tapes || { random: [], date: [], time: [], crypto: [] },
   flags: {},
 });
+// 反探测（开源特征防御）：内部状态不可枚举——Object.keys/for...in/JSON.stringify(globalThis)
+// 三类穷举向量全部隐藏。ownNames 穷举仍可见（完全隐藏需随机名/闭包化，见 ARCHITECTURE 分级）。
+// 预定义非枚举的 raw 通道存根：后续赋值不改变属性属性
+try {
+  Object.defineProperty(globalThis, '__jsseal', { value: globalThis.__jsseal, writable: true, enumerable: false, configurable: false });
+  Object.defineProperty(globalThis, '__jsseal_ret_raw', { value: undefined, writable: true, enumerable: false, configurable: true });
+  Object.defineProperty(globalThis, '__jsseal_err', { value: undefined, writable: true, enumerable: false, configurable: true });
+} catch (e) { /* 已存在（重复注入）则跳过 */ }
+// 插桩旁路：dbg 只经闭包注入（instrument 片段作用域），零全局足迹——guest 无法枚举
+__jsseal.dbg = function () {
+  var parts = [];
+  for (var i = 0; i < arguments.length; i++) parts.push(__canon(arguments[i], new Set()));
+  __jsseal.debug.push(parts.join(' '));
+};
 
 // ---------- 原始引用（在任何 patch 前捕获） ----------
 var __rnd = Math.random;
@@ -553,9 +571,16 @@ function __probeWrap(obj, name) {
   if (!obj || typeof Proxy === 'undefined') return obj;
   return new Proxy(obj, {
     get: function (t, k) {
-      if (typeof k === 'string' && !(k in t)) {
+      if (typeof k === 'string') {
         var key = name + '.' + k;
-        __jsseal.envMisses[key] = (__jsseal.envMisses[key] || 0) + 1;
+        if (!(k in t)) {
+          // 缺失访问（报缺数据源）
+          __jsseal.envMisses[key] = (__jsseal.envMisses[key] || 0) + 1;
+        }
+        if (__cfg.envTrace) {
+          // 访问图谱（envTrace）：全部 get 计数——SDK 实际探测面的完整地图
+          __jsseal.envAccesses[key] = (__jsseal.envAccesses[key] || 0) + 1;
+        }
       }
       return t[k];
     },
@@ -581,6 +606,8 @@ __jsseal.dump = function () {
     tapes: __jsseal.tapes,
     flags: __jsseal.flags,
     envMisses: __jsseal.envMisses,
+    envAccesses: __cfg.envTrace ? __jsseal.envAccesses : undefined,
+    debugLog: __jsseal.debug.length ? __jsseal.debug : undefined,
     evalLog: __jsseal.evalLog,
     netLog: __jsseal.netLog,
     netMisses: __jsseal.netMisses,

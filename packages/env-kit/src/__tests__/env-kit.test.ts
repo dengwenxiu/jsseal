@@ -52,3 +52,59 @@ describe('环境审计（认知库 → 封闭环境）', () => {
     expect(ids.has('behav-navigator-getter')).toBe(true); // own 数据属性触发原型形态检查（getter 应在原型上）
   }, 120_000);
 });
+
+describe('插桩旁路与访问图谱（instrument/envTrace）', () => {
+  it('dbg 闭包通道：输出进 debugLog，不污染 console 输出向量', { timeout: 60_000 }, async () => {
+    const { runSealed } = await import('@jsseal/runtime');
+    const base = await runSealed({
+      code: `console.log('biz:', 1);`,
+      mode: 'record', backend: 'quickjs',
+    });
+    const withInst = await runSealed({
+      code: `console.log('biz:', 1);`,
+      mode: 'record', backend: 'quickjs',
+      instrument: `dbg('旁路观察', 42);`,
+    });
+    // 插桩不改变可观测行为（console 向量逐位一致）
+    expect(JSON.stringify(withInst.console)).toBe(JSON.stringify(base.console));
+    expect(withInst.debugLog).toEqual(['"旁路观察" 42']);
+  });
+
+  it('插桩抛错不炸运行（容错进 debugLog）', { timeout: 60_000 }, async () => {
+    const { runSealed } = await import('@jsseal/runtime');
+    const out = await runSealed({
+      code: `console.log('still-ok');`,
+      mode: 'record', backend: 'quickjs',
+      instrument: `dbg('a'); var x = NotDefined; dbg('b');`,
+    });
+    expect(out.ok).toBe(true);
+    expect(out.console.map((c) => c.text)).toEqual(['"still-ok"']);
+    expect(out.debugLog?.some((d) => d.includes('instrument') && d.includes('NotDefined'))).toBe(true);
+  });
+
+  it('guest 无法枚举 dbg（闭包注入零全局足迹）', { timeout: 60_000 }, async () => {
+    const { runSealed } = await import('@jsseal/runtime');
+    const out = await runSealed({
+      code: `console.log('keys-has-dbg:', Object.keys(globalThis).indexOf('dbg') >= 0);`,
+      mode: 'record', backend: 'quickjs',
+      instrument: `dbg('hidden');`,
+    });
+    expect(out.console.map((c) => c.text)).toEqual(['"keys-has-dbg:" false']);
+  });
+
+  it('envTrace 访问图谱：全部 get 计数（含已有属性）', { timeout: 60_000 }, async () => {
+    const { runSealed } = await import('@jsseal/runtime');
+    const out = await runSealed({
+      code: `var a = navigator.userAgent; var b = navigator.plugins.length; var c = navigator.sendBeacon;`,
+      mode: 'record', backend: 'quickjs', envProbe: true, envTrace: true,
+    });
+    expect(out.envAccesses?.['navigator.userAgent']).toBe(1);
+    expect(out.envAccesses?.['navigator.plugins']).toBe(1);
+    expect(out.envMisses?.['navigator.sendBeacon']).toBe(1);
+  });
+
+  it('非枚举回归哨兵：内部状态不出现在 keys/for-in', { timeout: 60_000 }, async () => {
+    const r = await auditEnv({ backend: 'quickjs' });
+    expect(r.failures.some((f) => f.id === 'behav-hidden-state-enum')).toBe(false);
+  });
+});

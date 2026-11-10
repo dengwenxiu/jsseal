@@ -28,6 +28,10 @@ export interface DeobfuscateOptions {
   netFixtures?: Record<string, { status?: number; body?: string }>;
   /** forced execution 锚点数上限（native；0=关闭，默认 8）——多路径覆盖 */
   forcedBranches?: number;
+  /** 插桩旁路：闭包注入 dbg(...)（零全局足迹，输出走 debugLog 不进锚库） */
+  instrument?: string;
+  /** 访问图谱：记录 stub 对象全部属性访问（SDK 探测面地图） */
+  envTrace?: boolean;
   timeoutMs?: number;
   memoryLimitBytes?: number;
   transforms?: Transform[];
@@ -463,6 +467,10 @@ export interface ProbeReport {
   pool?: { decoded: boolean; items: string[] };
   /** 环境审计（认知库对齐情况：环境即封闭边界，缺口=风控感知面） */
   envAudit?: import('@jsseal/env-kit').AuditReport;
+  /** 访问图谱（envTrace）：SDK 实际探测面（含已有与缺失属性的访问计数） */
+  accessMap?: Record<string, number>;
+  /** 插桩旁路输出（instrument 的 dbg 调用） */
+  debugLog?: string[];
   missingEnv: Record<string, number>;
   /** 还原度告警：验证 PASS 不代表还原成功（外部 Agent 实测教训） */
   warnings: string[];
@@ -540,6 +548,8 @@ export async function probe(opts: DeobfuscateOptions): Promise<ProbeReport> {
   const out = await runSealed({
     code: opts.code,
     mode: 'record',
+    instrument: opts.instrument,
+    envTrace: opts.envTrace,
     entry: opts.entry,
     backend,
     timeoutMs: opts.timeoutMs,
@@ -571,6 +581,8 @@ export async function probe(opts: DeobfuscateOptions): Promise<ProbeReport> {
 
   return {
     envAudit,
+    accessMap: out.envAccesses,
+    debugLog: out.debugLog,
     family: detection.family,
     confidence: detection.confidence,
     features: detection.features,

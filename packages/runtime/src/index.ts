@@ -44,11 +44,16 @@ export async function runSealed(opts: SealedRunOptions): Promise<SealedOutput> {
     env: opts.env,
     engineSeeds: backend === 'native',
     envProbe: opts.envProbe,
+    envTrace: opts.envTrace,
     netFixtures: opts.netFixtures,
   });
-  // hashbang 剥离 + 用户代码 + 入口尾巴（同一 program）
+  // 插桩旁路：闭包注入 dbg（guest 无法枚举——不在任何全局对象上）
+  const instrumentPrefix = opts.instrument
+    ? `;try { (function (dbg) {\n${opts.instrument}\n})(globalThis.__jsseal.dbg); } catch (__ierr) { globalThis.__jsseal.dbg('[instrument] error:', String(__ierr)); }\n`
+    : '';
+  // hashbang 剥离 + 插桩 + 用户代码 + 入口尾巴（同一 program）
   const userCode = opts.code.replace(/^#![^\n]*\n?/, '');
-  const code = userCode + buildEntryTail(opts.entry);
+  const code = instrumentPrefix + userCode + buildEntryTail(opts.entry);
 
   const prog: GuestProgram = {
     prelude,

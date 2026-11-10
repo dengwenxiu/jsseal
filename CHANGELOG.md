@@ -10,6 +10,13 @@
   （引用须文本位置在声明后，防提格语义改变）——解锁非字面量调用点的折叠
 - 新变换 `prune-dead-decls`（通用死声明清理）：模块顶层无人引用的函数/变量
   不动点清理；eval/new Function 与全局对象动态访问（globalThis[k]）时放弃
+- 插桩旁路 instrument：闭包注入 dbg(...)（零全局足迹——开源特征防御，
+  guest 无法枚举；插桩抛错容错进 debugLog 不炸运行）；输出走 debugLog
+  通道不进锚库输出向量
+- 访问图谱 envTrace：envProbe 扩展记录全部属性访问（SDK 探测面完整地图，
+  与 envMisses/envAudit 构成三层感知）；probe/CLI 展示
+- 内部状态反探测：__jsseal/__jsseal_ret_raw 非枚举化（keys/for-in/
+  stringify 三向量隐藏）+ 认知库回归哨兵；随机名/闭包化为分级路线
 - AST 路径锚定 v2（强制分支序号→结构锚）：形状签名（字面量/标识符占位，
   对 0x↔十进制/重命名/格式化稳定）+ 函数提示 + 出现次序三层匹配；br trace
   打通执行序↔AST 节点；迁移成功的强制锚点升级为全输出比对（原 ok-only）

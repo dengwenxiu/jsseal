@@ -41,6 +41,10 @@ export interface SealedOutput {
   trace?: { events: TraceEvent[]; truncated: boolean };
   /** gas 消耗（native 后端） */
   gasUsed?: number;
+  /** 访问图谱（envTrace）：stub 对象全部属性访问计数 */
+  envAccesses?: Record<string, number>;
+  /** 插桩旁路输出（instrument 的 dbg 调用）——不参与锚库比对 */
+  debugLog?: string[];
   /** 环境缺失访问（envProbe 开启时）：'navigator.sendBeacon' → 次数 */
   envMisses?: Record<string, number>;
   /** 网络请求日志（可观测行为，参与锚库比较）：{method, url, body}[] */
@@ -118,6 +122,11 @@ export interface SealedRunOptions {
   netFixtures?: Record<string, { status?: number; body?: string }>;
   /** forced execution（native）：>0 时翻转第 k 个执行的条件分支 */
   forceBranchIndex?: number;
+  /** 插桩旁路：JS 片段，闭包注入 dbg(...) 打印函数（零全局足迹，guest 不可枚举）；
+   *  输出走 debugLog 通道，不进锚库输出向量（插桩不影响锚点比对） */
+  instrument?: string;
+  /** 访问图谱：记录 stub 对象全部属性访问（envAccesses，SDK 探测面地图） */
+  envTrace?: boolean;
 }
 
 /** 后端之间的原始交接结构（prelude/tail 由 index 统一组装） */

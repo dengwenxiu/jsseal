@@ -233,3 +233,34 @@ envAudit 是"环境本身对不对"（认知驱动、事前/事后皆可）。
 新认知 = 在 knowledge.ts 加一条（id/desc/severity/expr/capture），测试自动
 校验 expr 可解析；`jsseal env-audit <样本>` 随时可审。真机采集脚本由
 `buildCaptureScript()` 从同一认知库生成——单一事实源。
+
+### 8.1 插桩旁路与访问图谱
+
+**旁路通道（instrument）**：分析员需要插桩打印时，**不造全局 API**——开源特征
+会被风控抓取（遍历 window 成员/固定函数名）。方案是**闭包注入**：宿主把
+插桩片段包成 `;(function(dbg){ ... })(隐藏对象.dbg)` 注在 prelude 之后——
+`dbg` 只存在于插桩作用域，**零全局足迹**，guest 无法以任何枚举发现。
+输出走 `debugLog` 通道，**不进锚库输出向量**（插桩不影响锚点比对）。
+插桩片段抛错不炸运行（容错记录进 debugLog）。
+
+**访问图谱（envTrace）**：envProbe 从"只记缺失"扩展为"记录全部属性访问"
+（`envAccesses`：key → 次数）——SDK 实际探测面的完整地图，与 envMisses
+（摸到缺）、envAudit（环境对不对）构成三层感知。
+
+**内部状态反探测（分级）**：
+- ✅ 已做：`__jsseal`/`__jsseal_ret_raw` 非枚举化（keys/for-in/JSON.stringify
+  三类穷举向量全隐藏，认知库回归哨兵守卫）
+- 🗺 分级路线：随机化内部名（杀 ownNames 直接探测；需动 addon C 契约）→
+  闭包化状态对象（宿主持有、guest 全局零痕迹——彻底方案）
+
+### 8.2 浏览器行为模拟的三层判断
+
+JS 可观测的"浏览器行为"只有三类，逐层判断需要性：
+1. **API 形态与数值**（布局盒子返回数字、UA/屏幕指纹）——已覆盖（认知库
+   守卫 + 真机快照回流）
+2. **生命周期事件**（readyState/DOMContentLoaded/load、事件循环次序）——
+   虚拟时钟可确定性模拟（roadmap：加载生命周期首片）
+3. **渲染/布局/光栅**——**JS 不可见，不需要模拟**（getBoundingClientRect
+   之类返回值本身就是数字 stub）。无头模拟 = JS 引擎 + DOM/BOM 结构 +
+   事件语义，无渲染管线。判定标尺始终是认知库审计：环境补到审计对齐即止，
+   不为看不见的东西付出复杂度
