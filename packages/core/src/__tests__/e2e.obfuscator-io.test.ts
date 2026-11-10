@@ -414,7 +414,7 @@ describe('e2e · LLM 驱动改写（LLM 提案，governor 裁决，POSITIONING �
   });
 });
 
-describe('e2e · AST 路径锚定 v2（强制分支全输出比对）', () => {
+nativeDescribe('e2e · AST 路径锚定 v2（强制分支全输出比对）', () => {
   it(
     '结构锚在 test 文本改写下存活：0x→十进制改写后强制锚全比对通过',
     async () => {
