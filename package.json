@@ -36,5 +36,12 @@
   ],
   "engines": {
     "node": ">=18"
-  }
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/dengwenxiu/jsseal.git"
+  },
+  "bugs": "https://github.com/dengwenxiu/jsseal/issues",
+  "homepage": "https://github.com/dengwenxiu/jsseal#readme",
+  "author": "dengwenxiu"
 }

@@ -5,5 +5,13 @@
   "types": "dist/index.d.ts",
   "dependencies": {
     "@jsseal/ast": "0.5.0"
-  }
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/dengwenxiu/jsseal.git",
+    "directory": "packages/detector"
+  },
+  "bugs": "https://github.com/dengwenxiu/jsseal/issues",
+  "homepage": "https://github.com/dengwenxiu/jsseal#readme",
+  "author": "dengwenxiu"
 }

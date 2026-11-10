@@ -6,5 +6,13 @@
   "dependencies": {
     "quickjs-emscripten": "^0.32.0",
     "@jsseal/engine-native": "0.5.0"
-  }
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/dengwenxiu/jsseal.git",
+    "directory": "packages/runtime"
+  },
+  "bugs": "https://github.com/dengwenxiu/jsseal/issues",
+  "homepage": "https://github.com/dengwenxiu/jsseal#readme",
+  "author": "dengwenxiu"
 }

@@ -11,7 +11,7 @@
 ## 快速构建
 
 ```bash
-git clone <repo> && cd jsseal
+git clone https://github.com/dengwenxiu/jsseal.git && cd jsseal
 npm install                    # 安装依赖（npm workspaces）
 npx tsc -b                     # 编译 TypeScript（8 个包）
 bash engine/build.sh           # 编译 native 引擎（quickjs-ng fork + N-API addon）

@@ -10,5 +10,13 @@
     "@jsseal/runtime": "0.5.0",
     "@jsseal/transforms": "0.5.0",
     "@jsseal/engine-native": "0.5.0"
-  }
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/dengwenxiu/jsseal.git",
+    "directory": "packages/core"
+  },
+  "bugs": "https://github.com/dengwenxiu/jsseal/issues",
+  "homepage": "https://github.com/dengwenxiu/jsseal#readme",
+  "author": "dengwenxiu"
 }

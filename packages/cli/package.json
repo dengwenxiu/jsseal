@@ -21,12 +21,16 @@
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "https://github.com/virjar/jsseal"
+    "url": "git+https://github.com/dengwenxiu/jsseal.git",
+    "directory": "packages/cli"
   },
   "files": [
     "dist/"
   ],
   "engines": {
     "node": ">=18"
-  }
+  },
+  "bugs": "https://github.com/dengwenxiu/jsseal/issues",
+  "homepage": "https://github.com/dengwenxiu/jsseal#readme",
+  "author": "dengwenxiu"
 }

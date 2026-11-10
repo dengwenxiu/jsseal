@@ -1,5 +1,5 @@
 blank_issues_enabled: true
 contact_links:
   - name: 使用问题 / AI Agent 工作流
-    url: https://github.com/OWNER/REPO/blob/main/AGENTS.md
+    url: https://github.com/dengwenxiu/jsseal/blob/main/AGENTS.md
     about: 先读 AGENTS.md——"PASS ≠ 还原成功"与验收三要素是多数疑问的答案

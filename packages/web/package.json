@@ -7,5 +7,13 @@
     "build": "node build.mjs",
     "serve": "node serve.mjs",
     "start": "node build.mjs && node serve.mjs"
-  }
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/dengwenxiu/jsseal.git",
+    "directory": "packages/web"
+  },
+  "bugs": "https://github.com/dengwenxiu/jsseal/issues",
+  "homepage": "https://github.com/dengwenxiu/jsseal#readme",
+  "author": "dengwenxiu"
 }

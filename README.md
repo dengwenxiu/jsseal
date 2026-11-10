@@ -1,5 +1,9 @@
 # jsseal — 确定性封闭运行时 JS 反混淆器
 
+[![ci](https://github.com/dengwenxiu/jsseal/actions/workflows/ci.yml/badge.svg)](https://github.com/dengwenxiu/jsseal/actions/workflows/ci.yml)
+[![license](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+[![node](https://img.shields.io/badge/node-%E2%89%A518-green.svg)](docs/BUILDING.md)
+
 > **核心原理（一句话）**：反混淆的本质是等价改写，而程序等价性不可判定；
 > jsseal 在引擎级封闭一切非确定性（随机/时间/网络/时钟），把任意混淆程序
 > 连同环境变成**可重放的确定性纯函数**，从而把不可判定的等价性问题变成

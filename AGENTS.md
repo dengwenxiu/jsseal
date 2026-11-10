@@ -7,7 +7,7 @@ jsseal 是一个**确定性封闭运行时 JS 反混淆器**。核心方法论�
 ## 1. 使用（预构建产物可直接跑）
 
 ```bash
-cd ~/git/jsseal
+cd jsseal  # 克隆到哪都行，示例假设仓库根目录名为 jsseal
 node packages/cli/dist/index.js --help     # 所有命令与选项
 ```
 

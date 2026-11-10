@@ -18,7 +18,7 @@
 ## 开发环境
 
 ```bash
-git clone <repo> && cd jsseal
+git clone https://github.com/dengwenxiu/jsseal.git && cd jsseal
 npm install            # npm workspaces，一次装全
 npx tsc -b             # 编译 8 个包（project references）
 bash engine/build.sh   # 编译 native 引擎（quickjs fork + N-API addon）
