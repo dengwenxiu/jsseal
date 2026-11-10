@@ -129,6 +129,13 @@ jsseal 处理的是**不可信代码**。虽然封闭运行时（QuickJS 沙箱 
 不要把 `--net-fixture` 里的真实凭据提交进仓库；`report.json` 可能包含样本解出的
 明文（密钥、接口地址），公开分享前先脱敏。
 
+## 关于作者
+
+[dengwenxiu](https://github.com/dengwenxiu)，大连理工大学未来技术学院本科生
+（jsseal 发布时在读大三）。本项目——从方法论设计（环境封闭/锚库验证/恒等变换）、
+quickjs-ng 引擎 fork 的深度改造，到全部变换管线与工具链——为独立完成。
+欢迎通过 [issue](https://github.com/dengwenxiu/jsseal/issues) 交流。
+
 ## 许可
 
 MIT
