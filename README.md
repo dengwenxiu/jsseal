@@ -95,7 +95,7 @@ packages/
   runtime/        封闭内核（sealing prelude + 三后端）
   anchors/        锚库（行为恒等 + 健康哨兵 + 分支指纹迁移）
   detector/       家族识别 + 三件套提取
-  transforms/     22 个内置恒等变换（+ 可选 LLM 重命名）
+  transforms/     24 个内置恒等变换（+ 可选 LLM 重命名）
   core/           governor（验证循环/提交回滚）+ probe
   cli/            jsseal 命令行
   web/            浏览器演练场（单文件 bundle，wasm 内嵌）

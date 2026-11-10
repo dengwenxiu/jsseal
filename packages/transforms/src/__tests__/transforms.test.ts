@@ -12,6 +12,8 @@ import { demangleNames } from '../demangle';
 import { foldJsfuck } from '../fold-jsfuck';
 import { purifyClosures } from '../purify-closures';
 import { foldPureCalls } from '../fold-pure-calls';
+import { propagateConstants } from '../propagate-constants';
+import { pruneDeadDecls } from '../prune-dead-decls';
 
 const plainDetection: Detection = { family: 'plain', confidence: 0.5, features: [] };
 
@@ -184,5 +186,29 @@ function encrypt(v) { var o = ''; for (var i = 0; i < v.length; i++) { o += Stri
     expect(b).toContain('f(1)');
     const c = await apply(foldPureCalls, `function f(){ return Math.random(); } var a = f();`);
     expect(c).toContain('Math.random()');
+  });
+});
+
+describe('propagate-constants + prune-dead-decls 单测', () => {
+  it('单赋值字面量局部变量内联（文本位置必须在声明后）', async () => {
+    const out = await apply(propagateConstants, `function main(){ var v = 'abc'; console.log(v, v); } main();`);
+    expect(out).toContain("'abc', 'abc'");
+    expect(out).not.toContain('var v');
+  });
+
+  it('负例：声明前执行的引用不内联（提格语义）', async () => {
+    const out = await apply(propagateConstants, `function main(){ function g(){ return v; } var r = g(); var v = 'x'; return r + v; } main();`);
+    expect(out).toContain('var v');
+  });
+
+  it('死声明清理（不动点）+ eval/动态字符串防误删', async () => {
+    const out = await apply(pruneDeadDecls, `var used = 1; var dead = 2; function fA(){ return used; } function fDead(){} fA();`);
+    expect(out).not.toContain('fDead');
+    expect(out).not.toContain('dead');
+    expect(out).toContain('fA');
+    const evalKeep = await apply(pruneDeadDecls, `function f(){} eval('f()');`);
+    expect(evalKeep).toContain('function f');
+    const dynKeep = await apply(pruneDeadDecls, `function f(){} var k = 'f'; globalThis[k];`);
+    expect(dynKeep).toContain('function f');
   });
 });

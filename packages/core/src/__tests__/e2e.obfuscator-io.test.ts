@@ -163,14 +163,9 @@ dynDescribe('e2e · 动态 CFF（M2.5 执行序探针）', () => {
       // 分发器消失，块按真实执行序（2,0,1,3）排列
       expect(report.finalCode).not.toContain('switch');
       expect(report.finalCode).not.toContain('while');
-      const b = report.finalCode.indexOf('out += "b"');
-      const a = report.finalCode.indexOf('out += "a"');
-      const c = report.finalCode.indexOf('out += "c"');
-      const d = report.finalCode.indexOf('out += "d"');
-      expect(b).toBeGreaterThan(-1);
-      expect(a).toBeGreaterThan(b);
-      expect(c).toBeGreaterThan(a);
-      expect(d).toBeGreaterThan(c);
+// fold-pure-calls + prune-dead-decls 上线后产物进一步折叠为单字面量
+      //（拼接链全求值、函数全清理）——比"顺序正确"更彻底的还原
+      expect(report.finalCode).toContain('"bacd"');
     },
     120_000,
   );
@@ -329,8 +324,10 @@ describe('e2e · 局部函数纯化（POSITIONING §5.1）', () => {
     const report = await deobfuscate({ code, samples: 2, maxRounds: 4 });
     expect(report.finalValidation?.pass).toBe(true);
     expect(report.applied.some((a) => a.name === 'purify-closures')).toBe(true);
-    // 池被提升到模块顶层（结构可读性：分析员第一行就能看到池内容）
-    expect(report.finalCode?.trim().startsWith('var pool')).toBe(true);
+    // fold-pure-calls 把全部调用点折成明文 + prune-dead-decls 清掉死池死函数
+    //（比"池提到顶层"更彻底：明文直接内联，池整个消失）
+    expect(report.finalCode).toContain('SECRET_ALPHA');
+    expect(report.finalCode).not.toContain('pool');
   });
 });
 
@@ -349,5 +346,35 @@ describe('e2e · 通用纯调用折叠（fold-pure-calls，家族无关）', () 
     // 明文完全来自 purify-closures + fold-pure-calls 的家族无关路径
     expect(report.detection.family).toBe('plain');
     expect(report.finalCode).toContain('SECRET_ALPHA');
+  });
+});
+
+describe('e2e · 传播解锁折叠 + 死声明清理（纯化闭环收尾）', () => {
+  it('密文字面量经传播解锁 decrypt 折叠（方向守卫放行解密向）', async () => {
+    const key = 'K7';
+    const cipher = Buffer.from('hello world').map((c, i) => c ^ key.charCodeAt(i % key.length)).toString('latin1');
+    const code = `
+var key = ${JSON.stringify(key)};
+function decrypt(v) { var o = ''; for (var i = 0; i < v.length; i++) { o += String.fromCharCode(v.charCodeAt(i) ^ key.charCodeAt(i % key.length)); } return o; }
+function main() { var c = ${JSON.stringify(cipher)}; console.log('decrypted:' + decrypt(c)); }
+main();
+`;
+    const report = await deobfuscate({ code, samples: 2, maxRounds: 5 });
+    expect(report.finalValidation?.pass).toBe(true);
+    expect(report.finalCode).toContain('hello world');
+  });
+
+  it('折叠后死函数与死池被通用清理', async () => {
+    const code = `
+var pool = ['aa', 'bb'];
+function idx(i) { return pool[i]; }
+(function(){ console.log(idx(1)); })();
+`;
+    const report = await deobfuscate({ code, samples: 2, maxRounds: 5 });
+    expect(report.finalValidation?.pass).toBe(true);
+    expect(report.finalCode).toContain('"bb"');
+    // idx 全部调用点折叠 + pool 无人引用 → 双双被清理
+    expect(report.finalCode).not.toContain('function idx');
+    expect(report.finalCode).not.toContain('pool');
   });
 });

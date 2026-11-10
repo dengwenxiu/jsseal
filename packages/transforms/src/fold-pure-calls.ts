@@ -24,7 +24,7 @@
  */
 
 import * as t from '@babel/types';
-import { traverse } from '@jsseal/ast';
+import { traverse, generate } from '@jsseal/ast';
 import { runSealed } from '@jsseal/runtime';
 import { result, type Transform } from './types';
 import type { NodePath, Scope } from '@babel/traverse';
@@ -65,14 +65,33 @@ function isPureBuiltinCall(callee: t.Node): boolean {
   return PURE_INSTANCE_METHODS.has(m);
 }
 
-/** 全字面量原始参数（含一元负数）的调用点 → 源文本；否则 null */
-function literalArgsText(call: t.CallExpression, code: string): string | null {
+/** 密文态启发：非字母数字非空白符号占比高（≥0.35）且非纯数字串 */
+function looksOpaque(s: string): boolean {
+  if (!s) return false;
+  const symbols = (s.match(/[^\w\s]/g) ?? []).length;
+  return symbols / s.length >= 0.35;
+}
+
+/** 明文态启发：字母/数字/空白占比高（≥0.9）且含至少 3 连字母（像自然/标识符文本） */
+function looksTexty(s: string): boolean {
+  if (!s) return false;
+  const ok = (s.match(/[\w\s]/g) ?? []).length;
+  return ok / s.length >= 0.9 && /[a-zA-Z]{3,}/.test(s);
+}
+
+/**
+ * 全字面量原始参数（含一元负数）的调用点 → 生成文本；否则 null。
+ * 用 generate 现场打印而非 ctx.code 偏移切片：同轮前置变换（如
+ * propagate-constants）改过 AST 后，node.start 与重打印文本错位——
+ * 实测曾切出残缺片段使驱动 SyntaxError（expecting ';'）
+ */
+function literalArgsText(call: t.CallExpression): string | null {
   for (const a of call.arguments) {
     const ok = t.isStringLiteral(a) || t.isNumericLiteral(a) || t.isBooleanLiteral(a) || t.isNullLiteral(a)
       || (t.isUnaryExpression(a, { operator: '-' }) && t.isNumericLiteral(a.argument));
     if (!ok) return null;
   }
-  return code.slice(call.start!, call.end!);
+  return generate(call).code;
 }
 
 /** 通用子树下钻（带父节点）；visit 返回 false 即整体否决 */
@@ -202,7 +221,7 @@ export const foldPureCalls: Transform = {
     // ---------- 2) 调用点收集（同绑定 + 不逃逸 + 字面量参数） ----------
     const fnPathByName = new Map<string, NodePath<t.FunctionDeclaration>>();
     for (const [name, fp] of moduleFns) fnPathByName.set(name, fp);
-    const sitesByFn = new Map<string, Array<{ path: NodePath<t.CallExpression>; text: string; strArg: boolean }>>();
+    const sitesByFn = new Map<string, Array<{ path: NodePath<t.CallExpression>; text: string; strArg: boolean; strArgValue?: string }>>();
     const escapeFns = new Set<string>();
     traverse(ast, {
       Identifier(ip) {
@@ -211,13 +230,15 @@ export const foldPureCalls: Transform = {
         if (ip.scope.getBinding(ip.node.name)?.path !== fnPathByName.get(ip.node.name)) return; // 同名不同绑定
         const p = ip.parent;
         if (t.isCallExpression(p) && p.callee === ip.node) {
-          const text = literalArgsText(p, ctx.code);
+          const text = literalArgsText(p);
           if (text !== null) {
             const list = sitesByFn.get(ip.node.name) ?? [];
+            const strLit = p.arguments.find((a) => t.isStringLiteral(a)) as t.StringLiteral | undefined;
             list.push({
               path: ip.parentPath as NodePath<t.CallExpression>,
               text,
-              strArg: p.arguments.some((a) => t.isStringLiteral(a)),
+              strArg: strLit !== undefined,
+              strArgValue: strLit?.value,
             });
             sitesByFn.set(ip.node.name, list);
           }
@@ -268,11 +289,14 @@ export const foldPureCalls: Transform = {
       for (const site of sites) {
         const v = valueByText.get(site.text);
         if (v === undefined) continue;
-        // 方向守卫：字符串字面量入参 + 字符串返回 = 加密函数典型形态
-        //（encrypt("hello world") → 折回密文是还原度负优化——把 inline-decoder
-        //  刚内联出来的明文又加密回去，实测教训）；索引型 decoder（数字入参）
-        //  不受影响照常折叠
-        if (site.strArg && typeof v === 'string') { skippedCodec++; continue; }
+        // 方向守卫（可读性启发式）：字符串→字符串的折叠分不清加密/解密方向——
+        // encrypt("明文") 折回密文是还原度负优化（实测：把 inline-decoder 刚
+        // 内联的明文又加密回去）。只放行"解密方向"：入参不透明（符号密文态）
+        // 且返回值文本化（字母/空格为主）。启发式不保证语义方向，只保证
+        // 折叠朝可读性增益的方向；错误方向被锚库兜底（行为恒等）
+        if (site.strArg && typeof v === 'string') {
+          if (!(looksOpaque(String(site.strArgValue)) && looksTexty(v))) { skippedCodec++; continue; }
+        }
         try {
           site.path.replaceWith(
             typeof v === 'string' ? t.stringLiteral(v) : typeof v === 'boolean' ? t.booleanLiteral(v) : t.numericLiteral(v),

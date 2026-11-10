@@ -740,3 +740,31 @@ inline-decoder 内联后源码里有明文 `encrypt("hello world")`——直接�
 击落）。修复：**方向守卫**——字符串字面量入参 + 字符串返回（加密函数典型
 形态）不折；索引型 decoder（数字入参）照常。另：walk 必须区分位置——
 `String.fromCharCode` 的属性名被当自由标识符会误拒候选。
+
+## 30. 纯化闭环收尾：propagate-constants + prune-dead-decls（2026-11-10）
+
+purify → fold 的配套两环，三变换链 `传播 → 折叠 → 清理` 完整落地：
+- **propagate-constants**：单赋值字面量局部变量内联。解锁器——`var c="<密文>";
+  decrypt(c)` 经内联变为全字面量调用点，fold 才能继续折出明文。
+- **prune-dead-decls**：fold 折完全部调用点后死函数/死池的家族无关清理
+  （不动点：删 A 使 B 也不再被引用）。防误删：eval/new Function 出现即弃；
+  `globalThis[k]` 类全局对象动态访问即弃（间接引用静态不可见）。
+- **fold 方向守卫升级为可读性启发式**：字符串→字符串折叠只放行
+  "入参不透明（符号占比≥0.35）且返回值文本化（字母/空格≥0.9 含 3 连字母）"
+  的解密方向；加密方向（明文入参）仍拦截。实测 XOR 密文→hello world 正确放行。
+
+### 踩坑（3 个，都很典型）
+1. **code↔offsets 不变式**：同轮前置变换（传播）改过 AST 后，node.start
+   与重打印文本错位——fold 用 ctx.code.slice(start,end) 切调用点切出残缺
+   片段，驱动直接 SyntaxError。修复：generate(call) 现场打印，不依赖偏移。
+   （fold-jsfuck/jsconfuser 依赖同一不变式，它们靠"governor 每轮重 parse"
+   天然成立；fold-pure-calls 内部两步才暴露。）
+2. **声明 id 自引用**：prune 的 used 集合把 `var dead` 的声明 id 也算引用
+   （Identifier visitor 不区分声明位置）→ 一个都删不掉。
+3. **globalThis[k] 静态不可见**：动态字符串引用无法静态穷举——接收者是
+   全局对象的访问出现即整体放弃；真实生效的动态引用另有锚库兜底。
+
+### 战果
+cff-dynamic fixture 产物从"顺序正确的语句序列"进一步折叠为**单字面量
+`"bacd"`**（拼接链全求值 + 函数全清理）——比原测试断言的还原目标更彻底，
+两个 e2e 断言升级以匹配更优产物。

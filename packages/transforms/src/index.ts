@@ -28,6 +28,8 @@ export { jsconfuserCff } from './jsconfuser-cff';
 export { pruneDeadPool } from './prune-dead-pool';
 export { purifyClosures } from './purify-closures';
 export { foldPureCalls } from './fold-pure-calls';
+export { propagateConstants } from './propagate-constants';
+export { pruneDeadDecls } from './prune-dead-decls';
 export { extractBranchFingerprints, buildMigration, matchFingerprint } from './branch-fingerprint';
 export type { BranchFingerprint, ForcedAnchorMigration } from './branch-fingerprint';
 
@@ -54,6 +56,8 @@ import { jsconfuserCff } from './jsconfuser-cff';
 import { pruneDeadPool } from './prune-dead-pool';
 import { purifyClosures } from './purify-closures';
 import { foldPureCalls } from './fold-pure-calls';
+import { propagateConstants } from './propagate-constants';
+import { pruneDeadDecls } from './prune-dead-decls';
 
 /** 默认管线顺序（governor 按此逐条应用+验证，迭代至不动点） */
 /**
@@ -82,6 +86,8 @@ export const defaultPipeline: Transform[] = [
   unflattenCff,
   unflattenCffDynamic,
   purifyClosures,
+  propagateConstants,
   foldPureCalls,
+  pruneDeadDecls,
   demangleNames,
 ];
