@@ -333,3 +333,21 @@ describe('e2e · 局部函数纯化（POSITIONING §5.1）', () => {
     expect(report.finalCode?.trim().startsWith('var pool')).toBe(true);
   });
 });
+
+describe('e2e · 通用纯调用折叠（fold-pure-calls，家族无关）', () => {
+  it('purify 提升后的池+解码器 → 无家族检测折叠出明文', async () => {
+    const code = `
+(function () {
+  var pool = ['log', 'SECRET_ALPHA', 'join'];
+  function dec(i) { return pool[i]; }
+  console.log(dec(0) + ':' + dec(1));
+})();
+`;
+    const report = await deobfuscate({ code, samples: 2, maxRounds: 5 });
+    expect(report.finalValidation?.pass).toBe(true);
+    // 家族识别为 plain（非 obfuscator-io）——decoder-lookup-table 不适用，
+    // 明文完全来自 purify-closures + fold-pure-calls 的家族无关路径
+    expect(report.detection.family).toBe('plain');
+    expect(report.finalCode).toContain('SECRET_ALPHA');
+  });
+});

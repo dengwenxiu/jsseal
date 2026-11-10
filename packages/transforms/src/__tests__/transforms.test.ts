@@ -11,6 +11,7 @@ import { unflattenCff } from '../unflatten-cff';
 import { demangleNames } from '../demangle';
 import { foldJsfuck } from '../fold-jsfuck';
 import { purifyClosures } from '../purify-closures';
+import { foldPureCalls } from '../fold-pure-calls';
 
 const plainDetection: Detection = { family: 'plain', confidence: 0.5, features: [] };
 
@@ -145,5 +146,43 @@ describe('purify-closures 单测', () => {
     expect(escape).toContain('(function');
     const written = await apply(purifyClosures, `(function(){ var c=0; function f(){ return c++; } f(); })();`);
     expect(written).toContain('c++');
+  });
+});
+
+describe('fold-pure-calls 单测', () => {
+  it('money-shot：池+解码器（零家族检测）→ 明文折叠', async () => {
+    const out = await apply(foldPureCalls, `
+var pool = ['log', 'SECRET_ALPHA', 'join'];
+function dec(i) { return pool[i]; }
+(function(){ console.log(dec(1)); })();
+`);
+    expect(out).toContain('"SECRET_ALPHA"');
+    expect(out).not.toContain('dec(1)');
+  });
+
+  it('内建链折叠（数字入参——字符串入参走方向守卫不折）', async () => {
+    const out = await apply(foldPureCalls, `
+function h(c) { return String.fromCharCode(c + 1); }
+(function(){ console.log(h(97)); })();
+`);
+    expect(out).toContain('"b"');
+  });
+
+  it('方向守卫：字符串入参加密函数不折叠（负优化拦截）', async () => {
+    const out = await apply(foldPureCalls, `
+var key = "K";
+function encrypt(v) { var o = ''; for (var i = 0; i < v.length; i++) { o += String.fromCharCode(v.charCodeAt(i) ^ key.charCodeAt(0)); } return o; }
+(function(){ var c = encrypt("hello world"); console.log(c); })();
+`);
+    expect(out).toContain('encrypt("hello world")');
+  });
+
+  it('负例：副作用 / 模块变量重赋值 / Math.random 依赖', async () => {
+    const a = await apply(foldPureCalls, `function f(){ console.log(1); return 2; } f();`);
+    expect(a).toContain('console.log(1)');
+    const b = await apply(foldPureCalls, `var k=1; function f(x){return k+x;} var a=f(1); k=5; var b=f(2);`);
+    expect(b).toContain('f(1)');
+    const c = await apply(foldPureCalls, `function f(){ return Math.random(); } var a = f();`);
+    expect(c).toContain('Math.random()');
   });
 });

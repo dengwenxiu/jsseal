@@ -717,3 +717,26 @@ obfuscator.io 池样本 PASS 156ms、probe 16ms。
 - 实战定位：主流家族（obfuscator.io 池本在顶层；sojson 前置变换后已清空）
   轮到 purify 时已无捕获——它的战场是嵌套形态与后续**通用纯调用求值折叠**
   （top-pure 函数 + 全字面量调用点 → 常量化，解码器查表的泛化）。
+
+## 29. 通用纯调用折叠 fold-pure-calls（2026-11-10，purify 的收益兑现）
+
+top-pure 函数（自由变量全部解析到模块级**单赋值**绑定）+ 全字面量调用点 →
+返回值是常量 → 封闭求值（当前代码 + 尾部驱动，`__jsseal_ret_raw` 通道）回填。
+**家族无关**：purify 提升后的池+解码器在 detection=plain（无任何家族识别）
+时直接折出明文——decoder-lookup-table 的泛化。
+
+### 静态门卫（保守）
+- 写目标（赋值/自增/delete）根标识符必须 F 内绑定；禁 this/arguments/eval/
+  new/with/yield/标签模板
+- 调用白名单：纯内建（Math.* 除 random / String.fromCharCode / 字符串数组
+  只读方法 / JSON.parse）或候选集内模块函数（**不动点收敛**：decode 调
+  bufferToString 则两者同时通过/出局）
+- 未绑定全局必须在纯白名单（console/document 拒）；模块绑定必须 constant
+- 名字不逃逸 + 同绑定校验；种子有序屏障由白名单天然保证（Math.random 不在）
+
+### 踩坑：折叠方向
+inline-decoder 内联后源码里有明文 `encrypt("hello world")`——直接折叠会把它
+**求值回密文** `"; />*t($75;"`（行为恒等 ✓ 但还原度负优化，e2e 明文回归断言
+击落）。修复：**方向守卫**——字符串字面量入参 + 字符串返回（加密函数典型
+形态）不折；索引型 decoder（数字入参）照常。另：walk 必须区分位置——
+`String.fromCharCode` 的属性名被当自由标识符会误拒候选。

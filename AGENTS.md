@@ -104,7 +104,7 @@ engine/addon/     N-API addon（C）——宿主编排全在此（改后必须 b
 packages/runtime/ 封闭内核（sealing prelude + 三后端）
 packages/anchors/ 锚库（行为恒等比较 + 健康哨兵）
 packages/detector/家族识别 + 三件套提取
-packages/transforms/ 21 个内置恒等变换（每文件一个，接口见 types.ts；矩阵回归 matrix.obfuscators.test.ts）
+packages/transforms/ 22 个内置恒等变换（每文件一个，接口见 types.ts；矩阵回归 matrix.obfuscators.test.ts）
 packages/core/    governor（验证循环/提交回滚）+ probe
 docs/ARCHITECTURE.md 架构与全部踩坑记录（改代码前必读）
 samples/          真实样本（sojsonv7 / 野外 obfuscator.io / jsconfuser）
