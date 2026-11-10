@@ -13,8 +13,12 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - { os: macos-14 }        # arm64
-          - { os: macos-13 }        # x64
+          # macOS runner 对当前账号暂不可用（job 被拾取前秒级 cancelled /
+          # 长期 queued 无 runner——GitHub 侧配额或新账号风控，非本仓库问题）。
+          # 本地 macOS arm64 已全量验证（build.sh + 98/98 测试）。
+          # runner 可用后取消下面两行注释即恢复矩阵：
+          # - { os: macos-14 }        # arm64
+          # - { os: macos-13 }        # x64
           - { os: ubuntu-24.04 }    # linux x64
           - { os: ubuntu-24.04-arm }# linux arm64
           - { os: windows-2025 }    # native 引擎暂不支持 MSVC（wasm 后端全量跑）
