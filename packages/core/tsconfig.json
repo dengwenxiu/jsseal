@@ -9,22 +9,25 @@
   ],
   "references": [
     {
-      "path": "../ast"
-    },
-    {
-      "path": "../runtime"
-    },
-    {
       "path": "../anchors"
+    },
+    {
+      "path": "../ast"
     },
     {
       "path": "../detector"
     },
     {
-      "path": "../transforms"
+      "path": "../engine-native"
     },
     {
-      "path": "../engine-native"
+      "path": "../env-kit"
+    },
+    {
+      "path": "../runtime"
+    },
+    {
+      "path": "../transforms"
     }
   ],
   "exclude": [
