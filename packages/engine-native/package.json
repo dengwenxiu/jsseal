@@ -1,0 +1,16 @@
+{
+  "name": "@jsseal/engine-native",
+  "version": "0.5.0",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "build:engine": "node ../../engine/build.sh"
+  },
+  "description": "Native QuickJS engine for jsseal (quickjs-ng fork with sealed execution)",
+  "license": "MIT",
+  "files": [
+    "dist/",
+    "native/"
+  ],
+  "optional": true
+}

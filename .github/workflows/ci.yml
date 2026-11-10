@@ -1,0 +1,34 @@
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  test:
+    name: ${{ matrix.os }}${{ matrix.arch && format('-{0}', matrix.arch) || '' }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { os: macos-14 }        # arm64
+          - { os: macos-13 }        # x64
+          - { os: ubuntu-24.04 }    # linux x64
+          - { os: ubuntu-24.04-arm }# linux arm64
+          - { os: windows-2025 }    # native 引擎暂不支持 MSVC（wasm 后端全量跑）
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Install deps
+        run: npm install --no-audit --no-fund
+      - name: Build TS
+        run: npx tsc -b
+      - name: Build native engine (non-Windows)
+        if: runner.os != 'Windows'
+        run: bash engine/build.sh
+      - name: Test (native 引擎不可用时自动降级 wasm 并 skip native 专属用例)
+        run: npx vitest run

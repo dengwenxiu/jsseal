@@ -1,0 +1,11 @@
+{
+  "name": "@jsseal/web",
+  "version": "0.5.0",
+  "private": true,
+  "description": "jsseal 浏览器演练场（wasm 后端，零服务器依赖）",
+  "scripts": {
+    "build": "node build.mjs",
+    "serve": "node serve.mjs",
+    "start": "node build.mjs && node serve.mjs"
+  }
+}

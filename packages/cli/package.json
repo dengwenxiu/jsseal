@@ -1,0 +1,32 @@
+{
+  "name": "@jsseal/cli",
+  "version": "0.5.0",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "bin": {
+    "jsseal": "./dist/index.js"
+  },
+  "dependencies": {
+    "@jsseal/core": "0.5.0",
+    "@jsseal/engine-native": "0.5.0"
+  },
+  "description": "Deterministic sealed-runtime JavaScript deobfuscator CLI",
+  "keywords": [
+    "deobfuscator",
+    "javascript",
+    "quickjs",
+    "reverse-engineering",
+    "security"
+  ],
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/virjar/jsseal"
+  },
+  "files": [
+    "dist/"
+  ],
+  "engines": {
+    "node": ">=18"
+  }
+}

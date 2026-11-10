@@ -1,0 +1,29 @@
+{
+  "files": [],
+  "references": [
+    {
+      "path": "packages/ast"
+    },
+    {
+      "path": "packages/runtime"
+    },
+    {
+      "path": "packages/anchors"
+    },
+    {
+      "path": "packages/detector"
+    },
+    {
+      "path": "packages/transforms"
+    },
+    {
+      "path": "packages/core"
+    },
+    {
+      "path": "packages/cli"
+    },
+    {
+      "path": "packages/engine-native"
+    }
+  ]
+}

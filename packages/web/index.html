@@ -1,0 +1,99 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>jsseal playground — 确定性封闭运行时 JS 反混淆器</title>
+<style>
+  :root {
+    --bg: #0d1117; --panel: #161b22; --border: #30363d; --fg: #e6edf3;
+    --dim: #8b949e; --accent: #58a6ff; --ok: #3fb950; --bad: #f85149; --warn: #d29922;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--fg); font: 14px/1.5 -apple-system, "PingFang SC", "Microsoft YaHei", sans-serif; }
+  header { display: flex; align-items: baseline; gap: 12px; padding: 14px 20px; border-bottom: 1px solid var(--border); }
+  header h1 { font-size: 18px; margin: 0; }
+  header h1 b { color: var(--accent); }
+  header .badge { font-size: 12px; color: var(--dim); border: 1px solid var(--border); border-radius: 10px; padding: 1px 8px; }
+  header .motto { font-size: 12px; color: var(--dim); margin-left: auto; }
+  main { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; padding: 12px 20px; height: calc(100vh - 60px - 40px); }
+  .panel { background: var(--panel); border: 1px solid var(--border); border-radius: 8px; display: flex; flex-direction: column; min-height: 0; }
+  .panel > .bar { display: flex; align-items: center; gap: 8px; padding: 8px 12px; border-bottom: 1px solid var(--border); }
+  .panel > .bar .title { font-weight: 600; font-size: 13px; }
+  textarea, pre { flex: 1; width: 100%; background: transparent; border: 0; color: var(--fg); font: 12px/1.55 "SF Mono", ui-monospace, Menlo, Consolas, monospace; padding: 10px 12px; resize: none; outline: none; overflow: auto; white-space: pre; margin: 0; }
+  button { background: #21262d; color: var(--fg); border: 1px solid var(--border); border-radius: 6px; padding: 5px 14px; font-size: 13px; cursor: pointer; }
+  button:hover { border-color: var(--accent); color: var(--accent); }
+  button:disabled { opacity: .45; cursor: wait; }
+  button.primary { background: #1f6feb33; border-color: var(--accent); color: var(--accent); }
+  select, input[type=number] { background: #21262d; color: var(--fg); border: 1px solid var(--border); border-radius: 6px; padding: 4px 6px; font-size: 12px; }
+  input[type=number] { width: 58px; }
+  .tabs { display: flex; gap: 4px; margin-left: auto; }
+  .tabs button { padding: 3px 10px; font-size: 12px; }
+  .tabs button.active { border-color: var(--accent); color: var(--accent); background: #1f6feb22; }
+  footer { display: flex; gap: 18px; align-items: center; padding: 8px 20px; border-top: 1px solid var(--border); font-size: 12px; color: var(--dim); height: 40px; }
+  .stat b { color: var(--fg); }
+  .pass { color: var(--ok); font-weight: 600; }
+  .fail { color: var(--bad); font-weight: 600; }
+  .warn { color: var(--warn); }
+  .applied-item { padding: 6px 0; border-bottom: 1px dashed #21262d; }
+  .applied-item .n { color: var(--accent); }
+  .applied-item .rb { color: var(--warn); }
+  .note { color: var(--dim); font-size: 12px; }
+  .hidden { display: none !important; }
+  #status { font-size: 12px; color: var(--dim); }
+  .kv { color: var(--dim); }
+  .kv b { color: var(--fg); font-weight: 500; }
+</style>
+</head>
+<body>
+<header>
+  <h1><b>jsseal</b> playground</h1>
+  <span class="badge">wasm 后端 · 浏览器内封闭运行</span>
+  <span class="motto">没有锚点就没有变换 —— 只做确定性恒等变换</span>
+</header>
+<main>
+  <section class="panel">
+    <div class="bar">
+      <span class="title">混淆输入</span>
+      <select id="sample">
+        <option value="">— 内置样本 —</option>
+        <option value="jsfuck.js">JSFuck 全编码</option>
+        <option value="packer-basic.js">packer (Dean Edwards)</option>
+        <option value="ob-stringarray-base64.js">obfuscator.io 字符串池</option>
+        <option value="ctor-chain.js">ctor 链</option>
+      </select>
+      <span style="margin-left:auto"></span>
+      <label class="note">锚点 <input type="number" id="samples" value="2" min="1" max="5" /></label>
+      <label class="note">轮数 <input type="number" id="rounds" value="4" min="1" max="8" /></label>
+    </div>
+    <textarea id="input" spellcheck="false" placeholder="粘贴混淆 JS，或选择内置样本…"></textarea>
+    <div class="bar" style="border-bottom:0; border-top:1px solid var(--border)">
+      <button id="probe">侦察 probe</button>
+      <button id="run" class="primary">反混淆</button>
+      <span id="status"></span>
+    </div>
+  </section>
+  <section class="panel">
+    <div class="bar">
+      <span class="title">结果</span>
+      <div class="tabs">
+        <button data-tab="code" class="active">代码</button>
+        <button data-tab="trace">变换轨迹</button>
+        <button data-tab="report">报告</button>
+      </div>
+    </div>
+    <pre id="out-code" class="tabpane"></pre>
+    <div id="out-trace" class="tabpane hidden" style="flex:1;overflow:auto;padding:8px 12px"></div>
+    <pre id="out-report" class="tabpane hidden"></pre>
+  </section>
+</main>
+<footer>
+  <span class="stat">输入 <b id="st-in">0</b> B</span>
+  <span class="stat">输出 <b id="st-out">0</b> B</span>
+  <span class="stat">变换 <b id="st-applied">0</b> 应用 / <b id="st-rolled">0</b> 回滚</span>
+  <span class="stat" id="st-pass"></span>
+  <span class="stat" id="st-time"></span>
+</footer>
+<script type="module" src="./main.js"></script>
+</body>
+</html>

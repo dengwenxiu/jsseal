@@ -1,0 +1,16 @@
+{
+  "name": "@jsseal/transforms",
+  "version": "0.5.0",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "dependencies": {
+    "@jsseal/anchors": "0.5.0",
+    "@jsseal/ast": "0.5.0",
+    "@jsseal/runtime": "0.5.0",
+    "@babel/generator": "^7.24.0",
+    "@babel/parser": "^7.24.0",
+    "@babel/traverse": "^7.24.0",
+    "@babel/types": "^7.24.0",
+    "@jsseal/detector": "0.5.0"
+  }
+}

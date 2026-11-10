@@ -1,0 +1,33 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "outDir": "dist",
+    "rootDir": "src"
+  },
+  "include": [
+    "src"
+  ],
+  "references": [
+    {
+      "path": "../ast"
+    },
+    {
+      "path": "../runtime"
+    },
+    {
+      "path": "../anchors"
+    },
+    {
+      "path": "../detector"
+    },
+    {
+      "path": "../transforms"
+    },
+    {
+      "path": "../engine-native"
+    }
+  ],
+  "exclude": [
+    "src/**/__tests__"
+  ]
+}

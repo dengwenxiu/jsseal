@@ -1,0 +1,12 @@
+# 文本统一 LF（跨平台 CI：macOS/Linux native + Windows wasm）
+* text=auto
+
+# shell 脚本必须 LF（Windows 检出跑 bash build.sh）
+*.sh text eol=lf
+
+# 二进制
+*.node binary
+*.wasm binary
+*.a binary
+*.o binary
+*.png binary
