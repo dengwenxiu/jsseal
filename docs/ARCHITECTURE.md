@@ -768,3 +768,17 @@ purify → fold 的配套两环，三变换链 `传播 → 折叠 → 清理` �
 cff-dynamic fixture 产物从"顺序正确的语句序列"进一步折叠为**单字面量
 `"bacd"`**（拼接链全求值 + 函数全清理）——比原测试断言的还原目标更彻底，
 两个 e2e 断言升级以匹配更优产物。
+
+## 31. LLM 驱动改写提案 llm-rewrite（2026-11-10，POSITIONING §4.4 落地）
+
+"LLM 提案，governor 裁决"的完整实现：LLM 直接提案改写后的函数代码
+（llm-rename 只建议名字够不着的层次——结构重组/表达式简化/控制流清理），
+等价性不靠信任 LLM，靠锚库逐条重放。
+
+- 分块：模块顶层函数逐个送审（prompt 小、失败隔离、回滚粒度细）
+- 形态校验：输出必须可解析且为单一 FunctionDeclaration（剥 markdown 围栏）
+- provider：mock（确定性 `x = x + 1`→`x += 1` 恒等简化）/openai/anthropic/
+  ollama/**custom**（`(code)=>Promise<string>` 任意 LLM 服务注入点）
+- e2e 双侧证明：恒等提案被应用（产物含 `+=` 且 PASS）；**恶意提案**
+  （custom 注入 `return x + t + 100` 改行为）被锚库回滚、产物不含恶意码、
+  终验 PASS——裁决侧的实证

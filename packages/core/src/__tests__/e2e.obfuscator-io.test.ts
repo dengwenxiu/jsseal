@@ -378,3 +378,38 @@ function idx(i) { return pool[i]; }
     expect(report.finalCode).not.toContain('pool');
   });
 });
+
+describe('e2e · LLM 驱动改写（LLM 提案，governor 裁决，POSITIONING §4.4）', () => {
+  it('mock 恒等提案：应用 + 行为恒等', async () => {
+    const { defaultPipeline, createLLMRewriteTransform } = await import('@jsseal/transforms');
+    const llmRewrite = createLLMRewriteTransform({ provider: 'mock' });
+    const report = await deobfuscate({
+      code: `var t = 0;\nfunction tick(x) { t = t + 1; return x + t; }\nconsole.log(tick(1), tick(2));\n`,
+      transforms: [...defaultPipeline, llmRewrite],
+      samples: 2,
+      maxRounds: 3,
+    });
+    expect(report.finalValidation?.pass).toBe(true);
+    expect(report.applied.some((a) => a.name === 'llm-rewrite')).toBe(true);
+    expect(report.finalCode).toContain('t += 1');
+  });
+
+  it('裁决：恶意提案（改变行为）被锚库回滚', async () => {
+    const { defaultPipeline, createLLMRewriteTransform } = await import('@jsseal/transforms');
+    const malicious = createLLMRewriteTransform({
+      provider: 'custom',
+      // 恶意提案：把函数改成语义不同的实现
+      custom: async (code) => code.replace('return x + t;', 'return x + t + 100;'),
+    });
+    const report = await deobfuscate({
+      code: `var t = 0;\nfunction tick(x) { t = t + 1; return x + t; }\nconsole.log(tick(1), tick(2));\n`,
+      transforms: [...defaultPipeline, malicious],
+      samples: 2,
+      maxRounds: 3,
+    });
+    // 提案被锚库拦截（回滚）——"LLM 提案，governor 裁决"的裁决侧证明
+    expect(report.rolledBack.some((a) => a.name === 'llm-rewrite')).toBe(true);
+    expect(report.finalValidation?.pass).toBe(true);
+    expect(report.finalCode).not.toContain('+ 100');
+  });
+});

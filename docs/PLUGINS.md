@@ -176,6 +176,31 @@ async function myProvider(
 // 注入到 createLLMRenameTransform 内部（需修改源码或 fork）
 ```
 
+### LLM 改写提案（llm-rewrite——"LLM 提案，governor 裁决"）
+
+`llm-rename` 只让 LLM 建议名字；`llm-rewrite` 让 LLM **直接提案改写后的
+函数代码**（高层变换：结构重组/控制流清理）。等价性不靠信任 LLM——每个
+提案都在验证锚库上重放，行为恒等才提交，失败回滚。
+
+```typescript
+import { createLLMRewriteTransform } from '@jsseal/transforms';
+
+const llmRewrite = createLLMRewriteTransform({
+  provider: 'anthropic',            // mock / openai / anthropic / ollama / custom
+  apiKey: 'sk-...',
+  instructions: '合并重复的字符串拼接',  // 可选附加指令
+  // custom: (code) => myLLMService(code),   // 任意 LLM 服务注入点
+});
+
+const report = await deobfuscate({ code, transforms: [...defaultPipeline, llmRewrite] });
+// report.applied 含 llm-rewrite（提案被锚库采纳）
+// report.rolledBack 含 llm-rewrite = 提案被裁决否决（宪法正常工作）
+```
+
+分块策略：模块顶层函数逐个送审（prompt 小、失败隔离、回滚粒度细）。
+输出必须可解析且为单一函数声明，否则跳过该块。mock 后端做确定性恒等
+简化（`x = x + 1` → `x += 1`），供离线测试提案-裁决闭环。
+
 ## 测试指南
 
 ### 单元测试

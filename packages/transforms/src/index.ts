@@ -28,6 +28,8 @@ export { jsconfuserCff } from './jsconfuser-cff';
 export { pruneDeadPool } from './prune-dead-pool';
 export { purifyClosures } from './purify-closures';
 export { foldPureCalls } from './fold-pure-calls';
+export { createLLMRewriteTransform } from './llm-rewrite';
+export type { LLMRewriteOptions } from './llm-rewrite';
 export { propagateConstants } from './propagate-constants';
 export { pruneDeadDecls } from './prune-dead-decls';
 export { extractBranchFingerprints, buildMigration, matchFingerprint } from './branch-fingerprint';

@@ -14,6 +14,7 @@ import { purifyClosures } from '../purify-closures';
 import { foldPureCalls } from '../fold-pure-calls';
 import { propagateConstants } from '../propagate-constants';
 import { pruneDeadDecls } from '../prune-dead-decls';
+import { createLLMRewriteTransform } from '../llm-rewrite';
 
 const plainDetection: Detection = { family: 'plain', confidence: 0.5, features: [] };
 
@@ -210,5 +211,25 @@ describe('propagate-constants + prune-dead-decls 单测', () => {
     expect(evalKeep).toContain('function f');
     const dynKeep = await apply(pruneDeadDecls, `function f(){} var k = 'f'; globalThis[k];`);
     expect(dynKeep).toContain('function f');
+  });
+});
+
+describe('llm-rewrite 单测（LLM 提案，governor 裁决）', () => {
+  it('mock：恒等简化提案被应用', async () => {
+    const tr = createLLMRewriteTransform({ provider: 'mock' });
+    const out = await apply(tr, `var t = 0;\nfunction f(x) { t = t + 1; return x; }\nf(1);`);
+    expect(out).toContain('t += 1');
+  });
+
+  it('custom：垃圾输出跳过（形态校验）', async () => {
+    const tr = createLLMRewriteTransform({ provider: 'custom', custom: async () => 'not valid js ((((' });
+    const r = await tr.run(parseCode(`function f(){return 1;} f();`), ctx());
+    expect(r.changed).toBe(false);
+  });
+
+  it('custom：provider 抛错 → no-op（失败隔离）', async () => {
+    const tr = createLLMRewriteTransform({ provider: 'custom', custom: async () => { throw new Error('boom'); } });
+    const r = await tr.run(parseCode(`function f(){return 1;} f();`), ctx());
+    expect(r.changed).toBe(false);
   });
 });

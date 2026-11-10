@@ -112,6 +112,7 @@ packages/
 | trace | call/sret/cret（实参+污点）/br/go 五类事件 + 白名单 |
 | 分支强制 | 第 k 个执行的条件分支取反 + 指纹迁移（多路径覆盖） |
 | LLM 重命名 | mock/openai/anthropic/ollama 四后端（"LLM only suggests names"） |
+| LLM 改写提案 | llm-rewrite：LLM 直接提案函数改写，governor 锚库裁决（mock/openai/anthropic/ollama/custom） |
 | 环境探针 | 缺失 API 自动报告（envMisses/netMisses/missingEnv 三条闭环） |
 
 ## 已知限制

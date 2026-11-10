@@ -10,6 +10,9 @@
   （引用须文本位置在声明后，防提格语义改变）——解锁非字面量调用点的折叠
 - 新变换 `prune-dead-decls`（通用死声明清理）：模块顶层无人引用的函数/变量
   不动点清理；eval/new Function 与全局对象动态访问（globalThis[k]）时放弃
+- 新变换 `llm-rewrite`（LLM 驱动改写提案，POSITIONING §4.4 落地）：LLM
+  直接提案函数改写，governor 锚库裁决（实测恶意提案被回滚）；provider
+  mock/openai/anthropic/ollama/custom（任意 LLM 服务注入点）
 - 新变换 `fold-pure-calls`（通用纯调用折叠，purify 的收益兑现）：top-pure
   函数（自由变量全为模块级单赋值绑定）在全字面量调用点封闭求值→常量回填，
   **家族无关**（decoder-lookup-table 的泛化）；静态纯门卫（写目标局部性/
