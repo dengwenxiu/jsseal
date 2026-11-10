@@ -19,6 +19,10 @@ export interface AnchorSample {
   expected: SealedOutput;
   /** forced execution 锚点：翻转第 k 个执行的条件分支（多路径覆盖）；普通锚点无此字段 */
   forceIndex?: number;
+  /** AST 路径锚定 v2：结构锚（形状签名+函数提示+出现次序+执行出现次序） */
+  forceAnchor?: import('./branch-anchor').StructuralBranchAnchor;
+  /** v2：结构锚迁移成功后启用全输出比对（替代 ok-only 哨兵） */
+  forceFullCompare?: boolean;
   /** forced 锚点对应的分支测试表达式指纹（结构身份——变换后用于存活检查与序号迁移） */
   forceFingerprint?: string;
 }
@@ -186,7 +190,14 @@ export async function validateCorpus(
      * 完整输出比对必然误报；降格为只比 ok 状态——强制路径上"原本正常 → 变换后抛错"
      * 即路径破坏（悬空引用类逃逸的捕获目标） */
     if (s.forceIndex !== undefined) {
-      if (s.expected.ok && !actual.ok) {
+      if (s.forceFullCompare) {
+        // v2 结构锚迁移成功：强制的是"同一个分支"，全输出比对成立（等价于普通锚点）
+        const { equal, diffs } = compareOutputs(s.expected, actual);
+        if (!equal) {
+          failures.push({ sample: i, kind: 'diff', detail: 'forced(full) ' + diffs.map((d) => `${d.field}: ${d.expected} → ${d.actual}`).join(' | ') });
+        }
+      } else if (s.expected.ok && !actual.ok) {
+        // v1 序号锚定：降格为 ok-only 哨兵（序号漂移下全比对必误报）
         failures.push({ sample: i, kind: 'diff', detail: `forced-path broken: ${actual.thrown ?? '(crashed)'}` });
       }
       continue;
@@ -198,3 +209,6 @@ export async function validateCorpus(
   }
   return { pass: failures.length === 0 && checked > 0, failures, checked };
 }
+
+/* ======================== AST 路径锚定 v2（结构锚） ======================== */
+export * from './branch-anchor';

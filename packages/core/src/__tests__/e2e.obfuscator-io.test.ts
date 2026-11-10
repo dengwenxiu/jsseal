@@ -413,3 +413,27 @@ describe('e2e · LLM 驱动改写（LLM 提案，governor 裁决，POSITIONING �
     expect(report.finalCode).not.toContain('+ 100');
   });
 });
+
+describe('e2e · AST 路径锚定 v2（强制分支全输出比对）', () => {
+  it(
+    '结构锚在 test 文本改写下存活：0x→十进制改写后强制锚全比对通过',
+    async () => {
+      // 0x8*0x2 → fold-constants 打印为 8 * 2（文本变、形状签名 If:(>_,(*#,#)) 稳定）
+      const code = `
+function grade(x) {
+  if (x > 0x8 * 0x2) { return 'A'; }
+  if (x > 0x4 + 0x4) { return 'B'; }
+  return 'C';
+}
+console.log(grade(20), grade(12), grade(5));
+`;
+      const report = await deobfuscate({ code, samples: 2, maxRounds: 4, forcedBranches: 3 });
+      expect(report.finalValidation?.pass).toBe(true);
+      expect(report.forcedAnchors).toBeGreaterThan(0);
+      // v1 文本指纹下这类改写会失配回退；v2 下 fold 系变换正常提交（强制锚全比对通过）
+      expect(report.applied.some((a) => a.name === 'fold-constants')).toBe(true);
+      expect(report.rolledBack.some((a) => a.name === 'fold-constants')).toBe(false);
+    },
+    120_000,
+  );
+});

@@ -7,7 +7,7 @@
  */
 
 import { freeVariables, hashCode, parseCode, printCode, traverse } from '@jsseal/ast';
-import { buildCorpus, validateCorpus, type Corpus, type ValidationOutcome } from '@jsseal/anchors';
+import { buildCorpus, validateCorpus, type Corpus, type ValidationOutcome , collectBranchNodes, anchorOf, execOccurrencesOfTrace, resolveForceIndex } from '@jsseal/anchors';
 import { detect, type Detection } from '@jsseal/detector';
 import { defaultPipeline } from '@jsseal/transforms';
 import type { Transform } from '@jsseal/transforms';
@@ -182,7 +182,9 @@ export async function deobfuscate(opts: DeobfuscateOptions): Promise<Deobfuscate
   let forcedAnchors = 0;
   const maxForced = backend === 'native' ? (opts.forcedBranches ?? 0) : 0; // 默认关闭：序号锚定在重度结构变换下会漂移（见 docs §17）
   if (maxForced > 0 && corpus.samples.length > 0) {
-    const branchFps = extractBranchFingerprints(parseCode(opts.code));
+    // v2 AST 路径锚定：结构锚（形状签名+函数提示+出现次序）。
+    // br trace 的第 k 个事件 = 被强制的分支（行号）→ 原 AST 定位节点 → 结构锚
+    const origBranchNodes = collectBranchNodes(parseCode(opts.code));
     for (let k = 1; k <= maxForced; k++) {
       try {
         const run = await runSealed({
@@ -193,12 +195,32 @@ export async function deobfuscate(opts: DeobfuscateOptions): Promise<Deobfuscate
           timeoutMs: opts.timeoutMs,
           memoryLimitBytes: opts.memoryLimitBytes,
           forceBranchIndex: k,
+          trace: { branches: true },
           env: opts.env as never,
         });
         if (run.forceApplied && !run.flags.timeout && !run.flags.oom) {
-          // 记录分支指纹（结构身份——k-1 因为 fps 是 0-based 而 forceIndex 是 1-based）
-          const fp = branchFps[k - 1]?.hash;
-          corpus.samples.push({ tapes: run.tapes, expected: run, forceIndex: k, forceFingerprint: fp });
+          const brEvents = (run.trace?.events ?? []).filter((e) => e.k === 'br' && typeof e.l === 'number');
+          const kth = brEvents[k - 1];
+          if (kth) {
+            // 第 k 个 br 事件的 (行号, 该行第 m 次执行) → 原 AST 节点
+            const occ = execOccurrencesOfTrace(brEvents.map((e) => e.l as number))[k - 1];
+            // 精确行匹配（先 test 行后语句行）——±1 容差在紧凑代码（分支相邻行）
+            // 会把锚劫持到邻居分支，实测导致强制错位全比对误报（踩坑）
+            const kl = kth.l as number;
+            const node = origBranchNodes.find((n) => n.line === kl) ?? origBranchNodes.find((n) => n.stmtLine === kl);
+            if (node) {
+              corpus.samples.push({
+                tapes: run.tapes,
+                expected: run,
+                forceIndex: k,
+                forceAnchor: anchorOf(node, occ.execOccurrence),
+              });
+              forcedAnchors++;
+              continue;
+            }
+          }
+          // 定位失败 → v1 行为：指纹 + ok-only 哨兵
+          corpus.samples.push({ tapes: run.tapes, expected: run, forceIndex: k });
           forcedAnchors++;
         }
       } catch {
@@ -309,16 +331,42 @@ export async function deobfuscate(opts: DeobfuscateOptions): Promise<Deobfuscate
         //   - 不存在 → 跳过该强制锚点（分支已被合法消除）
         let effectiveCorpus = corpus;
         const forcedSamples = corpus.samples.filter((s2) => s2.forceIndex !== undefined);
-        if (forcedSamples.length > 0) {
-          const origAst = parseCode(opts.code);
+        if (forcedSamples.length > 0 && forcedSamples.some((s2) => s2.forceAnchor)) {
+          // v2 结构锚迁移：锚 → 候选代码节点（分层匹配）→ 候选 br trace → 新执行序。
+          // 迁移成功 → forceFullCompare（全输出比对，等价普通锚点）；
+          // 失败 → 丢弃该锚（分支被合法消除，同 v1 语义）
           const candidateAst = parseCode(candidate);
-          const migration = buildMigration(origAst, candidateAst);
-          const adjusted = corpus.samples.map((s2) => {
-            if (s2.forceIndex === undefined) return s2;
-            const newIndex = migration.mapping.get(s2.forceIndex);
-            if (newIndex === undefined) return null; // 分支被消除
-            return { ...s2, forceIndex: newIndex };
-          }).filter((s2): s2 is NonNullable<typeof s2> => s2 !== null);
+          const candidateNodes = collectBranchNodes(candidateAst);
+          let traceLines: number[] | null = null;
+          const adjusted = [];
+          for (const s2 of corpus.samples) {
+            if (s2.forceIndex === undefined || !s2.forceAnchor) {
+              adjusted.push(s2.forceIndex !== undefined && !s2.forceAnchor ? s2 : s2); // 无锚样本原样保留
+              continue;
+            }
+            if (traceLines === null) {
+              try {
+                const natural = await runSealed({
+                  code: candidate,
+                  mode: 'replay',
+                  tapes: corpus.samples[0].tapes,
+                  entry: corpus.entry,
+                  backend,
+                  timeoutMs: opts.timeoutMs,
+                  memoryLimitBytes: opts.memoryLimitBytes,
+                  trace: { branches: true },
+                });
+                traceLines = (natural.trace?.events ?? [])
+                  .filter((e) => e.k === 'br' && typeof e.l === 'number')
+                  .map((e) => e.l as number);
+              } catch {
+                traceLines = [];
+              }
+            }
+            const newIndex = resolveForceIndex(s2.forceAnchor, candidateNodes, traceLines);
+            if (newIndex === null || newIndex < 1) continue; // 分支被消除/定位失败
+            adjusted.push({ ...s2, forceIndex: newIndex, forceFullCompare: true });
+          }
           effectiveCorpus = { ...corpus, samples: adjusted };
         }
         const v = await validateCorpus(effectiveCorpus, candidate, {
