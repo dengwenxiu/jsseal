@@ -10,6 +10,16 @@
 > 可机器验证的逐位比对——**每个变换都必须证明自己没有改变任何可观测行为，
 > 证明不了就回滚。没有锚点就没有变换。**
 
+**安装（npm 已发布 0.6.0）**：
+
+```bash
+npm install @jsseal/cli
+npx jsseal probe 样本.js
+npx jsseal 样本.js -o out.js --report r.json
+```
+
+**源码方式**（开发/贡献者；native 引擎需本地编译）：
+
 ```bash
 npm install && npx tsc -b && bash engine/build.sh && npm test
 node packages/cli/dist/index.js probe samples/obfuscator-io.js
@@ -23,6 +33,16 @@ npm run -w @jsseal/web start    # 构建 + 本地服务 → http://127.0.0.1:864
 ```
 
 ![playground](docs/images/playground.png)
+
+**安装（npm 已发布 0.6.0）**：
+
+```bash
+npm install @jsseal/cli
+npx jsseal probe 样本.js
+npx jsseal 样本.js -o out.js --report r.json
+```
+
+**源码方式**（开发/贡献者；native 引擎需本地编译）：
 
 ```bash
 npm install && npx tsc -b && bash engine/build.sh && npm test
