@@ -136,6 +136,26 @@ jsseal 处理的是**不可信代码**。虽然封闭运行时（QuickJS 沙箱 
 quickjs-ng 引擎 fork 的深度改造，到全部变换管线与工具链——为独立完成。
 欢迎通过 [issue](https://github.com/dengwenxiu/jsseal/issues) 交流。
 
+## 姊妹项目：jvmp —— 一攻一守，一矛一盾
+
+jsseal 与 [**jvmp**](https://jvmp.cn)（Java 代码虚拟化保护，闭源）出自同一团队，
+是同一套代码保护方法论的**一体两面**：
+
+- **jsseal 是矛**（开源）：向社区证明混淆可以被等价地、可验证地消除——
+  每一次变换都要过锚库逐位比对，"还原正确"是证明出来的，不是宣称的。
+- **[jvmp](https://jvmp.cn) 是盾**（闭源）：把同源的对抗经验用于防护——
+  每次构建随机化的种子 ISA、多解释器实例、N 版本语义、语义诱饵，
+  让攻击者从一次构建恢复的知识对下一次构建无效；其红队 CI 门禁
+  （模拟已知明文映射攻击）同样是"防护有效"的机器证明，而非宣称。
+
+攻击侧的每一条还原路线，反哺防护侧的对抗设计；防护侧的每一代加固，
+又是攻击能力的试金石。jsseal 的 JSVMP 反虚拟化路线
+（[POSITIONING §5.2](docs/POSITIONING.md)）正出自构建 VMP 的同一批人——
+**懂造盾，才更懂破盾**。
+
+> 需要保护 Java / Android 代码？→ **[jvmp.cn](https://jvmp.cn)**
+> （Gradle / Maven / Android 插件与云端服务）
+
 ## 许可
 
 MIT
