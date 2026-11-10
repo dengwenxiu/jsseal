@@ -324,7 +324,52 @@ globalThis.clearInterval = __virtClear;
 globalThis.cancelAnimationFrame = __virtClear;
 globalThis.cancelIdleCallback = __virtClear;
 /** 宿主事件循环驱动：执行下一个到期定时器；返回 false 表示队列空 */
+// ---------- 加载生命周期（确定性事件序：同步代码 → DOMContentLoaded → load → 定时器） ----------
+// readyState 语义与真实页面一致：同步脚本期 'loading'，DCL 后 'interactive'，load 后 'complete'
+__jsseal.lifecycle = { state: 'loading', firedDcl: false, firedLoad: false, listeners: [] };
+function __lifecycleOn(type, fn) {
+  if (typeof fn !== 'function') return;
+  __jsseal.lifecycle.listeners.push({ type: type, fn: fn });
+}
+function __lifecycleOff(type, fn) {
+  var ls = __jsseal.lifecycle.listeners;
+  for (var i = ls.length - 1; i >= 0; i--) {
+    if (ls[i].type === type && ls[i].fn === fn) ls.splice(i, 1);
+  }
+}
+function __lifecycleDispatch(type, target) {
+  var ev = {
+    type: type, target: target, currentTarget: target, timeStamp: __jsseal.vtime, defaultPrevented: false,
+    preventDefault: function () { this.defaultPrevented = true; }, stopPropagation: function () {}, stopImmediatePropagation: function () {},
+  };
+  var ls = __jsseal.lifecycle.listeners.slice();
+  for (var i = 0; i < ls.length; i++) {
+    if (ls[i].type !== type) continue;
+    try { ls[i].fn.call(target, ev); } catch (e) {
+      /* 浏览器语义：监听器异常不终止事件流，记录为可观测事件 */
+      __jsseal.console.push({ level: 'lifecycleError', text: __canon(e) });
+    }
+  }
+}
+/** 每次调用推进一步：DCL → load → false（定时器开始）。无监听器也推进 readyState（与真实浏览器一致） */
+__jsseal.lifecycleStep = function () {
+  if (!__jsseal.lifecycle.firedDcl) {
+    __jsseal.lifecycle.firedDcl = true;
+    __jsseal.lifecycle.state = 'interactive';
+    __lifecycleDispatch('DOMContentLoaded', globalThis.document || globalThis);
+    return true;
+  }
+  if (!__jsseal.lifecycle.firedLoad) {
+    __jsseal.lifecycle.firedLoad = true;
+    __jsseal.lifecycle.state = 'complete';
+    __lifecycleDispatch('load', globalThis.document || globalThis);
+    return true;
+  }
+  return false;
+};
+
 __jsseal.runNextTimer = function () {
+  if (__jsseal.lifecycleStep()) return true; // 生命周期先于定时器（浏览器序）
   var q = __jsseal.timerQueue;
   if (!q.length) return false;
   q.sort(function (a, b) { return a.at - b.at || a.seq - b.seq; });
@@ -431,7 +476,6 @@ if (typeof globalThis.document === 'undefined') {
     head: __docEl,
     title: '',
     cookie: '',
-    readyState: 'complete',
     visibilityState: 'visible',
     hidden: false,
     referrer: '',
@@ -450,15 +494,22 @@ if (typeof globalThis.document === 'undefined') {
     getElementsByClassName: function () { return []; },
     querySelector: function () { return null; },
     querySelectorAll: function () { return []; },
-    addEventListener: function () {},
-    removeEventListener: function () {},
-    createEvent: function () { return { initEvent: function () {} }; },
+    addEventListener: function (type, fn) { __lifecycleOn(type, fn); },
+    removeEventListener: function (type, fn) { __lifecycleOff(type, fn); },
+    dispatchEvent: function (ev) { __lifecycleDispatch(ev && ev.type, globalThis.document); return true; },
+    createEvent: function (t) { return { type: t, initEvent: function (ty) { this.type = ty; } }; },
     write: function (t) { __jsseal.console.push({ level: 'document.write', text: __canon(String(t)) }); },
     writeln: function (t) { __jsseal.console.push({ level: 'document.write', text: __canon(String(t)) }); },
   };
+  // readyState 跟随生命周期状态机（同步期 'loading'——与真实页面脚本所见一致）
+  try {
+    Object.defineProperty(globalThis.document, 'readyState', {
+      get: function () { return __jsseal.lifecycle.state; }, configurable: true,
+    });
+  } catch (e) { /* 已有定义则跳过 */ }
 }
-globalThis.addEventListener = function () {};
-globalThis.removeEventListener = function () {};
+globalThis.addEventListener = function (type, fn) { __lifecycleOn(type, fn); };
+globalThis.removeEventListener = function (type, fn) { __lifecycleOff(type, fn); };
 globalThis.dispatchEvent = function () { return true; };
 globalThis.atob = function (s) {
   var chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/';

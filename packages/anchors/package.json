@@ -1,10 +1,10 @@
 {
   "name": "@jsseal/anchors",
-  "version": "0.5.0",
+  "version": "0.6.0",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "dependencies": {
-    "@jsseal/runtime": "0.5.0"
+    "@jsseal/runtime": "0.6.0"
   },
   "repository": {
     "type": "git",

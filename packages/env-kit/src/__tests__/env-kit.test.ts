@@ -108,3 +108,37 @@ describe('插桩旁路与访问图谱（instrument/envTrace）', () => {
     expect(r.failures.some((f) => f.id === 'behav-hidden-state-enum')).toBe(false);
   });
 });
+
+describe('加载生命周期（确定性事件序）', () => {
+  it('同步 loading → DCL interactive → load complete → 定时器在后', { timeout: 60_000 }, async () => {
+    const { runSealed } = await import('@jsseal/runtime');
+    const out = await runSealed({
+      code: `
+console.log('sync:' + document.readyState);
+document.addEventListener('DOMContentLoaded', function () { console.log('dcl:' + document.readyState); });
+window.addEventListener('load', function () { console.log('load:' + document.readyState); });
+setTimeout(function () { console.log('timer:' + document.readyState); }, 10);
+`,
+      mode: 'record', backend: 'quickjs',
+    });
+    expect(out.console.map((c) => c.text)).toEqual([
+      '"sync:loading"', '"dcl:interactive"', '"load:complete"', '"timer:complete"',
+    ]);
+  });
+
+  it('无监听器也推进 readyState；监听器异常不终止事件流', { timeout: 60_000 }, async () => {
+    const { runSealed } = await import('@jsseal/runtime');
+    const out = await runSealed({
+      code: `setTimeout(function(){ console.log('late:', document.readyState); }, 5);`,
+      mode: 'record', backend: 'quickjs',
+    });
+    expect(out.console.map((c) => c.text)).toEqual(['"late:" "complete"']);
+    const bad = await runSealed({
+      code: `document.addEventListener('load', function(){ throw new Error('boom'); }); setTimeout(function(){ console.log('after:', document.readyState); }, 5);`,
+      mode: 'record', backend: 'quickjs',
+    });
+    expect(bad.ok).toBe(true);
+    expect(bad.console.some((c) => c.level === 'lifecycleError')).toBe(true);
+    expect(bad.console.some((c) => c.text === '"after:" "complete"')).toBe(true);
+  });
+});
