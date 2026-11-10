@@ -10,6 +10,7 @@ import { inlineProxyFunctions } from '../proxy-inline';
 import { unflattenCff } from '../unflatten-cff';
 import { demangleNames } from '../demangle';
 import { foldJsfuck } from '../fold-jsfuck';
+import { purifyClosures } from '../purify-closures';
 
 const plainDetection: Detection = { family: 'plain', confidence: 0.5, features: [] };
 
@@ -115,5 +116,34 @@ describe('fold-jsfuck 单测', () => {
     const out = await apply(foldJsfuck, `[][((![]+[])[+[]]+(!+[]+[])[+!+[]+!+[]+!+[]+!+[]]+(![]+[])[+!+[]+!+[]]+(![]+[])[+!+[]+!+[]])];`);
     // []["truefalse..."]——成员访问求值为 undefined 也回填为 undefined? 不：undefined 不在回填类型内
     expect(out).toContain('[');
+  });
+});
+
+describe('purify-closures 单测', () => {
+  it('提升策略：单赋值字面量捕获 + 函数搬移到模块顶层', async () => {
+    const out = await apply(purifyClosures, `(function(){ var pool=['a','b']; function dec(i){return pool[i];} console.log(dec(1)); })();`);
+    // 池与函数都到模块顶层（第一行是 var 声明；IIFE 内不再有 function 声明）
+    expect(out.trim().startsWith('var pool')).toBe(true);
+    expect(out).toContain('function dec(i)');
+    expect((out.match(/var pool/g) ?? []).length).toBe(1);
+  });
+
+  it('参数化策略：重赋值捕获变为前导参数（时间语义保持）', async () => {
+    const out = await apply(purifyClosures, `(function(){ var c=0; function f(){ return 'v'+c; } c=5; console.log(f()); })();`);
+    expect(out).toContain('function f(c)');
+    expect(out).toContain('f(c)');
+  });
+
+  it('递归自引用不是捕获（自引用漏网曾致二次 remove 崩溃）', async () => {
+    const out = await apply(purifyClosures, `(function(){ var m=[1,2]; function r(i){ if(i<=0) return 0; return m[i-1]+r(i-1); } console.log(r(2)); })();`);
+    expect(out.trim().startsWith('var m')).toBe(true);
+    expect(out.match(/function r\(/g)?.length).toBe(1);
+  });
+
+  it('安全栅栏：逃逸（return F）/ F 内写捕获 → 不动', async () => {
+    const escape = await apply(purifyClosures, `(function(){ var p=[1]; function d(i){return p[i];} return d; })()()(0);`);
+    expect(escape).toContain('(function');
+    const written = await apply(purifyClosures, `(function(){ var c=0; function f(){ return c++; } f(); })();`);
+    expect(written).toContain('c++');
   });
 });

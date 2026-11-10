@@ -315,3 +315,21 @@ describe('e2e · JSFuck 核心形态（M4 ctor 链）', () => {
     120_000,
   );
 });
+
+describe('e2e · 局部函数纯化（POSITIONING §5.1）', () => {
+  it('IIFE 包裹的池+解码器：提升纯化 + 行为恒等', async () => {
+    const code = `
+(function () {
+  var pool = ['log', 'SECRET_ALPHA', 'join'];
+  function dec(i) { return pool[i]; }
+  function biz(x) { return dec(0) + ':' + x; }
+  console.log(biz(dec(1)));
+})();
+`;
+    const report = await deobfuscate({ code, samples: 2, maxRounds: 4 });
+    expect(report.finalValidation?.pass).toBe(true);
+    expect(report.applied.some((a) => a.name === 'purify-closures')).toBe(true);
+    // 池被提升到模块顶层（结构可读性：分析员第一行就能看到池内容）
+    expect(report.finalCode?.trim().startsWith('var pool')).toBe(true);
+  });
+});

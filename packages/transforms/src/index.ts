@@ -26,6 +26,7 @@ export { jsconfuserUnfold } from './jsconfuser';
 export { jsconfuserStrings } from './jsconfuser-strings';
 export { jsconfuserCff } from './jsconfuser-cff';
 export { pruneDeadPool } from './prune-dead-pool';
+export { purifyClosures } from './purify-closures';
 export { extractBranchFingerprints, buildMigration, matchFingerprint } from './branch-fingerprint';
 export type { BranchFingerprint, ForcedAnchorMigration } from './branch-fingerprint';
 
@@ -50,6 +51,7 @@ import { jsconfuserUnfold } from './jsconfuser';
 import { jsconfuserStrings } from './jsconfuser-strings';
 import { jsconfuserCff } from './jsconfuser-cff';
 import { pruneDeadPool } from './prune-dead-pool';
+import { purifyClosures } from './purify-closures';
 
 /** 默认管线顺序（governor 按此逐条应用+验证，迭代至不动点） */
 /**
@@ -77,5 +79,6 @@ export const defaultPipeline: Transform[] = [
   inlineProxyFunctions,
   unflattenCff,
   unflattenCffDynamic,
+  purifyClosures,
   demangleNames,
 ];
