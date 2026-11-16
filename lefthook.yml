@@ -1,0 +1,24 @@
+pre-commit:
+  jobs:
+    - run: npx ultracite fix {staged_files}
+      glob:
+        - "*.ts"
+        - "*.tsx"
+        - "*.mts"
+        - "*.cts"
+        - "*.json"
+        - "*.jsonc"
+        - "*.css"
+        - "*.scss"
+        - "*.less"
+        - "*.vue"
+        - "*.svelte"
+        - "*.astro"
+        - "*.html"
+        - "*.md"
+        - "*.mdx"
+        - "*.yaml"
+        - "*.yml"
+        - "*.graphql"
+        - "*.gql"
+      stage_fixed: true

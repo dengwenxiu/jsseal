@@ -3,45 +3,55 @@
   "version": "0.6.0",
   "private": true,
   "description": "Deterministic sealed-runtime JavaScript deobfuscator (quickjs-ng fork, anchor-verified identity transforms)",
+  "keywords": [
+    "deobfuscator",
+    "javascript",
+    "obfuscator-io",
+    "quickjs",
+    "reverse-engineering",
+    "security"
+  ],
+  "homepage": "https://github.com/dengwenxiu/jsseal#readme",
+  "bugs": "https://github.com/dengwenxiu/jsseal/issues",
   "license": "MIT",
-  "type": "commonjs",
+  "author": "dengwenxiu (大连理工大学未来技术学院) <783405294@qq.com>",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/dengwenxiu/jsseal.git"
+  },
   "workspaces": [
     "packages/*"
   ],
+  "type": "commonjs",
   "scripts": {
     "build": "tsc -b",
     "clean": "tsc -b --clean",
     "test": "vitest run",
     "test:watch": "vitest",
     "gen:fixtures": "node tools/gen-fixtures.mjs",
-    "cli": "node packages/cli/dist/index.js"
+    "cli": "node packages/cli/dist/index.js",
+    "check": "ultracite check",
+    "fix": "ultracite fix",
+    "prepare": "lefthook install"
   },
   "devDependencies": {
     "@jitl/quickjs-singlefile-browser-release-sync": "^0.32.0",
     "@types/babel__generator": "^7.27.0",
     "@types/babel__traverse": "^7.28.0",
     "@types/node": "^24.0.0",
+    "eslint-plugin-sonarjs": "^4.2.2",
+    "eslint-plugin-tsdoc": "^0.5.4",
     "javascript-obfuscator": "^4.1.0",
     "js-confuser": "^2.1.3",
+    "lefthook": "^2.2.2",
+    "oxfmt": "^0.75.0",
+    "oxlint": "^1.93.0",
+    "oxlint-tsgolint": "^7.0.2007",
     "typescript": "^5.5.0",
+    "ultracite": "^8.2.1",
     "vitest": "^3.0.0"
   },
-  "keywords": [
-    "deobfuscator",
-    "javascript",
-    "quickjs",
-    "reverse-engineering",
-    "obfuscator-io",
-    "security"
-  ],
   "engines": {
     "node": ">=18"
-  },
-  "repository": {
-    "type": "git",
-    "url": "git+https://github.com/dengwenxiu/jsseal.git"
-  },
-  "bugs": "https://github.com/dengwenxiu/jsseal/issues",
-  "homepage": "https://github.com/dengwenxiu/jsseal#readme",
-  "author": "dengwenxiu (大连理工大学未来技术学院) <783405294@qq.com>"
+  }
 }
