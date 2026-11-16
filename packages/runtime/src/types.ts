@@ -1,5 +1,5 @@
 /**
- * @jsseal/runtime — 类型定义
+ * \@jsseal/runtime — 类型定义
  *
  * 封闭执行模型：
  *  - 程序 = f(代码, 环境模板, 入口参数, 种子磁带)
@@ -8,7 +8,7 @@
  *  - 有序屏障语义：种子调用不可删除/重排（由变换层保证，运行时以 consumed 计数暴露）
  */
 
-export type SeedCategory = 'random' | 'date' | 'time' | 'crypto';
+export type SeedCategory = "random" | "date" | "time" | "crypto";
 
 export type SeedTapes = Record<SeedCategory, number[]>;
 
@@ -47,8 +47,8 @@ export interface SealedOutput {
   debugLog?: string[];
   /** 环境缺失访问（envProbe 开启时）：'navigator.sendBeacon' → 次数 */
   envMisses?: Record<string, number>;
-  /** 网络请求日志（可观测行为，参与锚库比较）：{method, url, body}[] */
-  netLog?: Array<{ method: string; url: string; body: string | null }>;
+  /** 网络请求日志（可观测行为，参与锚库比较）：\{method, url, body\}[] */
+  netLog?: { method: string; url: string; body: string | null }[];
   /** eval/Function 生成的代码记录（拦截 pass-through，供 unfold-eval 消费） */
   evalLog?: string[];
   /** fixture 配置存在但未命中的 url（缺流量报缺） */
@@ -58,9 +58,11 @@ export interface SealedOutput {
 }
 
 export interface TraceEvent {
-  k: 'call' | 'sret' | 'cret' | 'br' | 'go';
+  // oxlint-disable-next-line sonarjs/max-union-size -- 事件种类与引擎 C 侧一一对应，拆成别名只会掩盖映射关系
+  k: "call" | "sret" | "cret" | "br" | "go";
   fn: string;
   argc?: number;
+  // oxlint-disable-next-line sonarjs/max-union-size -- 事件值是引擎侧原始类型集合，无法再合并
   v?: string | number | boolean | null;
   /** cret：实参（全原始类型） */
   a?: unknown[];
@@ -96,14 +98,15 @@ export interface EnvTemplate {
   userAgent?: string;
   language?: string;
   platform?: string;
+  // oxlint-disable-next-line anti-slop/no-unsafe-dictionary-type -- 环境模板是调用方开放的覆盖字典，具体契约由 prelude 注入侧决定
   [k: string]: unknown;
 }
 
-export type BackendKind = 'quickjs' | 'nodevm' | 'native';
+export type BackendKind = "quickjs" | "nodevm" | "native";
 
 export interface SealedRunOptions {
   code: string;
-  mode: 'record' | 'replay';
+  mode: "record" | "replay";
   /** replay 模式必填；record 模式忽略 */
   tapes?: SeedTapes;
   pins?: FunctionPin[];
@@ -115,12 +118,18 @@ export interface SealedRunOptions {
   /** gas 限额（native 引擎级，单位 10000 ops） */
   gasLimit?: number;
   /** 引擎级 trace 开关（native） */
-  trace?: { calls?: boolean; stringReturns?: boolean; callArgs?: boolean; branches?: boolean; cretFns?: string[] };
+  trace?: {
+    calls?: boolean;
+    stringReturns?: boolean;
+    callArgs?: boolean;
+    branches?: boolean;
+    cretFns?: string[];
+  };
   /** 环境探针：记录 stub 对象（navigator/document/...）的缺失属性访问 */
   envProbe?: boolean;
-  /** 网络 fixture：url（精确/前缀）→ {status, body}；未命中走确定性罐头 */
+  /** 网络 fixture：url（精确/前缀）→ \{status, body\}；未命中走确定性罐头 */
   netFixtures?: Record<string, { status?: number; body?: string }>;
-  /** forced execution（native）：>0 时翻转第 k 个执行的条件分支 */
+  /** forced execution（native）：大于 0 时翻转第 k 个执行的条件分支 */
   forceBranchIndex?: number;
   /** 插桩旁路：JS 片段，闭包注入 dbg(...) 打印函数（零全局足迹，guest 不可枚举）；
    *  输出走 debugLog 通道，不进锚库输出向量（插桩不影响锚点比对） */
@@ -137,13 +146,19 @@ export interface GuestProgram {
   timeoutMs: number;
   memoryLimitBytes: number;
   /** 'record' | 'replay'（native 后端的引擎级磁带需要） */
-  sealMode?: 'record' | 'replay';
+  sealMode?: "record" | "replay";
   /** replay 磁带（native 后端引擎级注入用；quickjs 后端走 prelude 数据） */
   tapes?: SeedTapes;
   /** gas 限额（native：引擎级确定性限额） */
   gasLimit?: number;
   /** trace 开关（native：引擎级事件） */
-  trace?: { calls?: boolean; stringReturns?: boolean; callArgs?: boolean; branches?: boolean; cretFns?: string[] };
+  trace?: {
+    calls?: boolean;
+    stringReturns?: boolean;
+    callArgs?: boolean;
+    branches?: boolean;
+    cretFns?: string[];
+  };
   /** 环境探针 */
   envProbe?: boolean;
   /** forced execution（native） */

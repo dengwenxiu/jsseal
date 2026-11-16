@@ -58,10 +58,10 @@ jsseal 补的就是这块地基：**在引擎级封闭一切非确定性，把�
 封闭带来一个精细问题：`Date.now()` 重放时是确定的（同磁带同值），但它
 **语义上**仍是非确定源。jsseal 因此区分两层：
 
-| 层 | 含义 | 处置 |
-|---|---|---|
-| 确定性 | 同磁带重放逐位一致 | 可录制、可重放、可进锚库 |
-| 稳定性 | 语义上是否依赖外部非确定输入 | 不稳定源打"污点"标记 |
+| 层     | 含义                         | 处置                     |
+| ------ | ---------------------------- | ------------------------ |
+| 确定性 | 同磁带重放逐位一致           | 可录制、可重放、可进锚库 |
+| 稳定性 | 语义上是否依赖外部非确定输入 | 不稳定源打"污点"标记     |
 
 **不稳定变量**（种子输出及其一切派生物）被污点传播标记；对它的优化被
 **传染阻断**——引擎的 taint 机制（cret 事件 `t=1`）让"感染了不稳定变量的
@@ -88,7 +88,7 @@ jsseal 的验证闭环在学术上有清晰谱系：
 ## 3. 对比
 
 | 维度 | AST 规则工具<br>synchrony / webcrack / REstringer | 裸 LLM | LLM+IR 混合<br>CASCADE（Google） | jsseal |
-|---|---|---|---|---|
+| --- | --- | --- | --- | --- |
 | 改写机制 | 硬编码规则 | 生成式改写 | LLM 定位关键函数 + IR 变换 | 确定性变换 + 锚库验证 |
 | 正确性保证 | 无（规则假设成立才对，错了无声产出错码） | 无（错了要靠后续发现，可能一直发现不了） | IR 变换确定，但无行为等价证明 | **每次变换行为逐位验证，失败即回滚** |
 | token 成本 | 0 | 高（全量代码过模型） | 高 | 常见混淆 ~0 token，AI 只处理残余 |
@@ -101,27 +101,24 @@ jsseal 的验证闭环在学术上有清晰谱系：
 1. **省 token**：绝大部分常见混淆（字符串池/轮转/CFF/eval 链/JSFuck…）由
    确定性变换无脑清除，AI 不必把几十 KB 的密文池读进上下文——只分析残余。
 2. **不犯错的保证，先于验证存在**：jsseal 的等价性是**构造性**的（恒等变换
-   + 锚库逐条把关），不需要"验证 AI 有没有改错"这道额外工序。AI 自动流程
-   没有这个约束——只能发现错误之后回头修，而**可能一直发现不了**。
+   - 锚库逐条把关），不需要"验证 AI 有没有改错"这道额外工序。AI 自动流程
+     没有这个约束——只能发现错误之后回头修，而**可能一直发现不了**。
 3. **AI 分析的基座**：jsseal 是带环境语义的 JS 引擎，能向 AI 输出代码的
    **性质描述**而非只有文本——probe 报告（家族/池明文/网络流/缺环境）与
    trace 事实（调用实参-返回对、污点标记、真实执行序）。AI 基于这些性质
    展开，比盯着混淆文本多出好几个维度。
 4. **（✅ 已落地）LLM 驱动 jsseal 的变换 API**（`createLLMRewriteTransform`）：
-   LLM 直接提案改写后的函数代码（结构重组/表达式简化/控制流清理——
-   llm-rename"只建议名字"解决不了的高层变换），等价性不靠信任 LLM，
+   LLM 直接提案改写后的函数代码（结构重组/表达式简化/控制流清理—— llm-rename"只建议名字"解决不了的高层变换），等价性不靠信任 LLM，
    靠 governor 锚库逐条重放裁决。在**破译的正确性**（锚库兜底——实测
    恶意提案被回滚）与**高层变换的可推理性**（LLM 擅长的部分）之间取得
-   均衡：**LLM 提案，governor 裁决**。provider：mock/openai/anthropic/
-   ollama/custom（任意 LLM 服务注入点）。
+   均衡：**LLM 提案，governor 裁决**。provider：mock/openai/anthropic/ ollama/custom（任意 LLM 服务注入点）。
 
 ## 5. 路线图：理论已立、工程推进中
 
 ### 5.1 近期
 
 - **局部函数纯化（✅ 已落地：`purify-closures` 变换）**：纯函数封闭是文件级的；
-  局部函数可能因闭包捕获而不纯。jsseal 感知作用域后用两条等价策略纯化——
-  **提升**（单赋值且初始化"位置无关纯"的捕获 → 声明与函数搬移到模块顶层，
+  局部函数可能因闭包捕获而不纯。jsseal 感知作用域后用两条等价策略纯化—— **提升**（单赋值且初始化"位置无关纯"的捕获 → 声明与函数搬移到模块顶层，
   依赖只剩模块级绑定+参数 = top-pure）与**参数化**（会重赋值的捕获 → 前导
   参数显式化，调用点传当前值，与闭包调用时刻读值语义一致）。安全栅栏：
   捕获只读、名字不逃逸、`arguments`/`this` 禁用、参数化调用点同绑定校验。
@@ -181,6 +178,5 @@ cret = 每次运算的实参-返回事实）给出真实指令流，翻译结果
 
 - synchrony / webcrack / REstringer —— AST 规则范式代表（见 §1.1 链接）
 - [CASCADE: LLM-Powered JavaScript Deobfuscator at Google（ICSE-SEIP'26）](https://arxiv.org/abs/2507.17691)
-- [Pnueli & Shtrichman, Translation Validation（1998）](https://cs.nyu.edu/home/people/in_memoriam/pnueli/pss00.pdf) /
-  [Necula, Translation Validation for an Optimizing Compiler（PLDI'00）](https://people.eecs.berkeley.edu/~necula/Papers/tv_pldi00.pdf)
+- [Pnueli & Shtrichman, Translation Validation（1998）](https://cs.nyu.edu/home/people/in_memoriam/pnueli/pss00.pdf) / [Necula, Translation Validation for an Optimizing Compiler（PLDI'00）](https://people.eecs.berkeley.edu/~necula/Papers/tv_pldi00.pdf)
 - [Tristan & Leroy, Formal Verification of Translation Validators（2008）](https://inria.hal.science/inria-00289540/document)

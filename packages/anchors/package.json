@@ -1,27 +1,27 @@
 {
   "name": "@jsseal/anchors",
   "version": "0.6.0",
-  "main": "dist/index.js",
-  "types": "dist/index.d.ts",
-  "dependencies": {
-    "@jsseal/runtime": "0.6.0"
-  },
+  "description": "Anchor store for jsseal: behavior-identity comparison and health sentinels",
+  "homepage": "https://github.com/dengwenxiu/jsseal#readme",
+  "bugs": "https://github.com/dengwenxiu/jsseal/issues",
+  "license": "MIT",
+  "author": "dengwenxiu",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/dengwenxiu/jsseal.git",
     "directory": "packages/anchors"
   },
-  "bugs": "https://github.com/dengwenxiu/jsseal/issues",
-  "homepage": "https://github.com/dengwenxiu/jsseal#readme",
-  "author": "dengwenxiu",
-  "publishConfig": {
-    "access": "public"
-  },
   "files": [
     "dist/"
   ],
-  "license": "MIT",
-  "description": "Anchor store for jsseal: behavior-identity comparison and health sentinels",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "publishConfig": {
+    "access": "public"
+  },
+  "dependencies": {
+    "@jsseal/runtime": "0.6.0"
+  },
   "engines": {
     "node": ">=18"
   }

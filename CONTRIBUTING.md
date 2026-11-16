@@ -22,7 +22,7 @@ git clone https://github.com/dengwenxiu/jsseal.git && cd jsseal
 npm install            # npm workspaces，一次装全
 npx tsc -b             # 编译 8 个包（project references）
 bash engine/build.sh   # 编译 native 引擎（quickjs fork + N-API addon）
-npm test               # 98 个测试
+npm test               # 185 个测试
 ```
 
 - 无 C 编译器时跳过 build.sh：自动降级 wasm 后端，纯 AST 变换测试照常跑，
@@ -36,8 +36,7 @@ npm test               # 98 个测试
 参考 `docs/PLUGINS.md`（接口与示例）与 `packages/transforms/src/` 下任意现有
 变换。要点：
 
-1. 每个变换一个文件，实现 `Transform` 接口（`name` / `risk: 'safe'|'unsafe'` /
-   `run(ast, ctx)`）。
+1. 每个变换一个文件，实现 `Transform` 接口（`name` / `risk: 'safe'|'unsafe'` / `run(ast, ctx)`）。
 2. 需要运行时求值的变换用 `runSealed`（`@jsseal/runtime`），事实提取走
    `__jsseal_ret_raw` 通道或 trace（cret 白名单），不要污染样本输出。
 3. 注册进 `packages/transforms/src/index.ts` 的 `defaultPipeline`，位置遵循

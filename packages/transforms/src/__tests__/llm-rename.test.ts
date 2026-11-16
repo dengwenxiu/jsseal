@@ -1,8 +1,9 @@
-import { describe, expect, it } from 'vitest';
-import { parseCode, printCode } from '@jsseal/ast';
-import { createLLMRenameTransform } from '../llm-rename';
-import { buildCorpus, validateCorpus } from '@jsseal/anchors';
-import type { TransformContext } from '../types';
+import { buildCorpus, validateCorpus } from "@jsseal/anchors";
+import { parseCode, printCode } from "@jsseal/ast";
+import { describe, expect, it } from "vitest";
+
+import { createLLMRenameTransform } from "../llm-rename";
+import type { TransformContext } from "../types";
 
 const sample = `
 var _0x4a3b = "SECRET_KEY_123";
@@ -15,53 +16,75 @@ console.log(_0x4a3b);
 console.log(_0x7e8f("hello"));
 `;
 
-describe('LLM 辅助重命名（mock provider）', () => {
-  it('mock 后端：启发式命名 + 行为恒等验证', async () => {
-    const transform = createLLMRenameTransform({ provider: 'mock' });
+describe("LLM 辅助重命名（mock provider）", () => {
+  it("mock 后端：启发式命名 + 行为恒等验证", async () => {
+    const transform = createLLMRenameTransform({ provider: "mock" });
     const code = sample;
     const corpus = await buildCorpus({ code, samples: 2 });
+
     const ctx: TransformContext = {
       code,
-      detection: { family: 'plain', confidence: 0.5, features: [] },
-      backend: 'native',
       corpus,
+      detection: { family: "plain", confidence: 0.5, features: [] },
+      backend: "native",
     };
+
     const ast = parseCode(code);
     const r = await transform.run(ast, ctx);
+    // oxlint-disable-next-line vitest/prefer-to-be-truthy -- changed 是布尔契约，toBeTruthy 会让任何真值放行（弱化断言）
     expect(r.changed).toBe(true);
-    expect(r.notes[0]).toMatch(/^renamed=\d+$/);
+    expect(r.notes[0]).toMatch(/^renamed=\d+$/u);
     // 大部分标识符被重命名（函数名可能保留——fn.name 属性可观测）
     const out = printCode(ast);
-    const mangled = (out.match(/_0x[0-9a-fA-F]+/g) ?? []).length;
-    expect(mangled).toBeLessThanOrEqual(2); // 函数名残留（声明+调用各 1 次）
+    const mangled = (out.match(/_0x[0-9a-fA-F]+/gu) ?? []).length;
+    // 函数名残留（声明+调用各 1 次）
+    expect(mangled).toBeLessThanOrEqual(2);
     // 行为恒等
     const v = await validateCorpus(corpus, out);
+    // oxlint-disable-next-line vitest/prefer-to-be-truthy -- validateCorpus 的 pass 是布尔契约，toBeTruthy 会放过非布尔真值
     expect(v.pass).toBe(true);
   });
 
-  it('mock 后端：charCodeAt 使用 → charBuf 命名', async () => {
-    const transform = createLLMRenameTransform({ provider: 'mock' });
+  it("mock 后端：charCodeAt 使用 → charBuf 命名", async () => {
+    const transform = createLLMRenameTransform({ provider: "mock" });
+
     const code = `
 var _0xa1b2 = "test";
 var _0xc3d4 = _0xa1b2.charCodeAt(0);
 console.log(_0xc3d4);
 `;
+
     const corpus = await buildCorpus({ code, samples: 2 });
-    const ctx: TransformContext = { code, detection: { family: 'plain', confidence: 0.5, features: [] }, backend: 'native', corpus };
+
+    const ctx: TransformContext = {
+      code,
+      corpus,
+      detection: { family: "plain", confidence: 0.5, features: [] },
+      backend: "native",
+    };
+
     const ast = parseCode(code);
     const r = await transform.run(ast, ctx);
+    // oxlint-disable-next-line vitest/prefer-to-be-truthy -- changed 是布尔契约，toBeTruthy 会放过非布尔真值
     expect(r.changed).toBe(true);
     const out = printCode(ast);
     // charCodeAt 使用应被命名为 charBuf
-    expect(out).toContain('charBuf');
+    expect(out).toContain("charBuf");
   });
 
-  it('无混淆标识符时跳过', async () => {
-    const transform = createLLMRenameTransform({ provider: 'mock' });
+  it("无混淆标识符时跳过", async () => {
+    const transform = createLLMRenameTransform({ provider: "mock" });
     const code = `var normalName = 1; console.log(normalName);`;
-    const ctx: TransformContext = { code, detection: { family: 'plain', confidence: 0.5, features: [] }, backend: 'native' };
+
+    const ctx: TransformContext = {
+      code,
+      detection: { family: "plain", confidence: 0.5, features: [] },
+      backend: "native",
+    };
+
     const ast = parseCode(code);
     const r = await transform.run(ast, ctx);
+    // oxlint-disable-next-line vitest/prefer-to-be-falsy -- 此用例断言"不变"（changed 必须恰为 false），toBeFalsy 会放过 undefined 等假值
     expect(r.changed).toBe(false);
   });
 });

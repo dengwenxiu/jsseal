@@ -1,77 +1,107 @@
 /**
- * @jsseal/runtime — 封闭执行内核
+ * \@jsseal/runtime — 封闭执行内核
  *
  * 用法：
- *   const out = await runSealed({ code, mode: 'record' });        // 预跑：录制种子磁带 + 稳定输出
- *   const out2 = await runSealed({ code, mode: 'replay', tapes: out.tapes }); // 重放：必须逐位一致
+ *   const out = await runSealed(\{ code, mode: 'record' \});        // 预跑：录制种子磁带 + 稳定输出
+ *   const out2 = await runSealed(\{ code, mode: 'replay', tapes: out.tapes \}); // 重放：必须逐位一致
  */
 
-import { buildEntryTail, buildPrelude, emptyTapes } from './prelude';
-import { runNodeVm } from './nodevm';
-import { runNative } from './native';
-import { runQuickJS } from './quickjs';
-import {
-  DEFAULT_MEMORY_LIMIT,
-  DEFAULT_TIMEOUT_MS,
-  type BackendKind,
-  type GuestProgram,
-  type SealedOutput,
-  type SealedRunOptions,
-} from './types';
+import { runNative } from "./native";
+import { runNodeVm } from "./nodevm";
+import { buildEntryTail, buildPrelude, emptyTapes } from "./prelude";
+import { runQuickJS } from "./quickjs";
+import type { RawRunOutcome } from "./quickjs";
+import { DEFAULT_MEMORY_LIMIT, DEFAULT_TIMEOUT_MS } from "./types";
+import type {
+  BackendKind,
+  GuestProgram,
+  SealedOutput,
+  SealedRunOptions,
+} from "./types";
 
-export * from './types';
+export * from "./types";
+
 export { emptyTapes };
 
 export class SealedRunError extends Error {
-  constructor(
-    public readonly fault: string,
-    public readonly detail: string,
-  ) {
+  readonly fault: string;
+  readonly detail: string;
+
+  constructor(fault: string, detail: string) {
     super(`sealed run fault=${fault}: ${detail}`);
-    this.name = 'SealedRunError';
+    this.name = "SealedRunError";
+    this.fault = fault;
+    this.detail = detail;
   }
 }
 
-export async function runSealed(opts: SealedRunOptions): Promise<SealedOutput> {
-  const backend: BackendKind = opts.backend ?? 'quickjs';
-  const tapes = opts.mode === 'replay' ? (opts.tapes ?? emptyTapes()) : emptyTapes();
+/** 按后端分派到具体执行器（nodevm/native 同步，quickjs 异步） */
+const runBackend = async (
+  backend: BackendKind,
+  prog: GuestProgram
+): Promise<RawRunOutcome> => {
+  if (backend === "nodevm") {
+    return runNodeVm(prog);
+  }
+
+  if (backend === "native") {
+    return runNative(prog);
+  }
+
+  return await runQuickJS(prog);
+};
+
+export const runSealed = async (
+  opts: SealedRunOptions
+): Promise<SealedOutput> => {
+  const backend: BackendKind = opts.backend ?? "quickjs";
+
+  const tapes =
+    opts.mode === "replay" ? (opts.tapes ?? emptyTapes()) : emptyTapes();
 
   const prelude = buildPrelude({
     mode: opts.mode,
-    tapes,
     pins: opts.pins ?? [],
     entry: opts.entry,
     env: opts.env,
-    engineSeeds: backend === 'native',
+    engineSeeds: backend === "native",
     envProbe: opts.envProbe,
     envTrace: opts.envTrace,
     netFixtures: opts.netFixtures,
+    tapes,
   });
+
   // 插桩旁路：闭包注入 dbg（guest 无法枚举——不在任何全局对象上）
-  const instrumentPrefix = opts.instrument
-    ? `;try { (function (dbg) {\n${opts.instrument}\n})(globalThis.__jsseal.dbg); } catch (__ierr) { globalThis.__jsseal.dbg('[instrument] error:', String(__ierr)); }\n`
-    : '';
+  const instrument = opts.instrument ?? "";
+
+  const instrumentPrefix =
+    instrument === ""
+      ? ""
+      : `;try { (function (dbg) {\n${instrument}\n})(globalThis.__jsseal.dbg); } catch (__ierr) { globalThis.__jsseal.dbg('[instrument] error:', String(__ierr)); }\n`;
+
   // hashbang 剥离 + 插桩 + 用户代码 + 入口尾巴（同一 program）
-  const userCode = opts.code.replace(/^#![^\n]*\n?/, '');
+  const userCode = opts.code.replace(/^#![^\n]*\n?/u, "");
   const code = instrumentPrefix + userCode + buildEntryTail(opts.entry);
 
   const prog: GuestProgram = {
     prelude,
     code,
-    tail: '',
+    tapes,
+    tail: "",
     timeoutMs: opts.timeoutMs ?? DEFAULT_TIMEOUT_MS,
     memoryLimitBytes: opts.memoryLimitBytes ?? DEFAULT_MEMORY_LIMIT,
     sealMode: opts.mode,
-    tapes,
     gasLimit: opts.gasLimit,
     trace: opts.trace,
     envProbe: opts.envProbe,
     forceBranchIndex: opts.forceBranchIndex,
   };
 
-  const outcome = backend === 'nodevm' ? runNodeVm(prog) : backend === 'native' ? runNative(prog) : await runQuickJS(prog);
-  if (outcome.fault || !outcome.output) {
-    throw new SealedRunError(outcome.fault ?? 'unknown', outcome.detail ?? '');
+  const outcome = await runBackend(backend, prog);
+
+  if (outcome.fault !== undefined || outcome.output === undefined) {
+    throw new SealedRunError(outcome.fault ?? "unknown", outcome.detail ?? "");
   }
+
   return outcome.output;
-}
+};

@@ -25,7 +25,8 @@ node packages/cli/dist/index.js --help     # 所有命令与选项
 若 dist 缺失或引擎需重建（贡献者）：
 
 ```bash
-npm install && npx tsc -b && bash engine/build.sh && npm test   # 98 测试应全绿
+npm install && npx tsc -b && bash engine/build.sh && npm test   # 185 测试应全绿
+npm run check && npm run fix                  # 代码质量门（Ultracite：oxlint + oxfmt）
 ```
 
 - native 引擎不可用时自动降级 wasm 后端（trace/污点/强制分支等高级特性仅 native 有）
@@ -118,7 +119,13 @@ samples/          真实样本（sojsonv7 / 野外 obfuscator.io / jsconfuser）
 2. 引擎 C 改后必须重跑 build.sh（quickjs.o 有时间戳缓存，必要时 touch 源文件）；
 3. 变换必须恒等——产物交 governor 验证，不许"顺手优化"；
 4. 新能力先写测试（native 用例用 `isEngineAvailable() ? it : it.skip` 守卫）；
-5. 提交信息用中文描述动机与教训（供 AI 追踪历史）。
+5. 提交信息用中文描述动机与教训（供 AI 追踪历史）；
+6. 代码质量门是 `npm run check`（只检）/ `npm run fix`（自动修），两者都必须退出码 0。
+   `engine/quickjs/`（vendor fork 含上游测试/文档脚本）、`samples/`、`packages/transforms/fixtures/`
+   （混淆样本与密文夹具）不属于本仓库可维护源码，已在 `oxlint.config.mts` / `oxfmt.config.mts`
+   里统一 ignore；不要把规范强加到这些目录（会制造与上游的假 diff）。
+   规则与必要行为冲突时用 `// oxlint-disable-next-line <rule> -- <中文理由>`，
+   类型断言前用 `// SAFETY: <理由>`，禁止无理由整文件 disable。
 
 # Ultracite Code Standards
 

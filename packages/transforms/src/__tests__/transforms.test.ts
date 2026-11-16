@@ -1,70 +1,98 @@
-import { describe, expect, it } from 'vitest';
-import { parseCode, printCode } from '@jsseal/ast';
-import type { Detection } from '@jsseal/detector';
-import type { TransformContext } from '../types';
-import { foldConstants } from '../fold-constants';
-import { memberNormalize } from '../member-normalize';
-import { deadCode } from '../dead-code';
-import { splitSequences } from '../sequences';
-import { inlineProxyFunctions } from '../proxy-inline';
-import { unflattenCff } from '../unflatten-cff';
-import { demangleNames } from '../demangle';
-import { foldJsfuck } from '../fold-jsfuck';
-import { purifyClosures } from '../purify-closures';
-import { foldPureCalls } from '../fold-pure-calls';
-import { propagateConstants } from '../propagate-constants';
-import { pruneDeadDecls } from '../prune-dead-decls';
-import { createLLMRewriteTransform } from '../llm-rewrite';
+import { parseCode, printCode } from "@jsseal/ast";
+import type { Detection } from "@jsseal/detector";
+import { describe, expect, it } from "vitest";
 
-const plainDetection: Detection = { family: 'plain', confidence: 0.5, features: [] };
+import { deadCode } from "../dead-code";
+import { demangleNames } from "../demangle";
+import { foldConstants } from "../fold-constants";
+import { foldJsfuck } from "../fold-jsfuck";
+import { foldPureCalls } from "../fold-pure-calls";
+import { createLLMRewriteTransform } from "../llm-rewrite";
+import { memberNormalize } from "../member-normalize";
+import { propagateConstants } from "../propagate-constants";
+import { inlineProxyFunctions } from "../proxy-inline";
+import { pruneDeadDecls } from "../prune-dead-decls";
+import { purifyClosures } from "../purify-closures";
+import { splitSequences } from "../sequences";
+import type { Transform, TransformContext } from "../types";
+import { unflattenCff } from "../unflatten-cff";
 
-function ctx(code = ''): TransformContext {
-  return { code, detection: plainDetection, backend: 'quickjs' };
-}
+const plainDetection: Detection = {
+  family: "plain",
+  confidence: 0.5,
+  features: [],
+};
 
-async function apply(t: { run: (ast: never, ctx: TransformContext) => Promise<{ changed: boolean; notes: string[] }> }, code: string): Promise<string> {
+const ctx = (code = ""): TransformContext => ({
+  code,
+  detection: plainDetection,
+  backend: "quickjs",
+});
+
+const apply = async (transform: Transform, code: string): Promise<string> => {
   const ast = parseCode(code);
-  await t.run(ast as never, ctx(code));
-  return printCode(ast);
-}
+  await transform.run(ast, ctx(code));
 
-describe('transforms 单测', () => {
-  it('fold-constants：数字表达式/布尔混淆/字符串拼接', async () => {
-    const out = await apply(foldConstants, `var a = 0x14f * 0x2 + -0x1b0; var b = !![]; var c = !+[] + !+[]; var d = 'x' + 'y';`);
-    expect(out).toContain('a = 238');
-    expect(out).toContain('b = true');
+  return printCode(ast);
+};
+
+describe("transforms 单测", () => {
+  it("fold-constants：数字表达式/布尔混淆/字符串拼接", async () => {
+    const out = await apply(
+      foldConstants,
+      `var a = 0x14f * 0x2 + -0x1b0; var b = !![]; var c = !+[] + !+[]; var d = 'x' + 'y';`
+    );
+
+    expect(out).toContain("a = 238");
+    expect(out).toContain("b = true");
     expect(out).toContain(`"xy"`);
   });
 
-  it('member-normalize：bracket → dot', async () => {
-    const out = await apply(memberNormalize, `a['foo'](); b['not-id'](); c['$valid_1']++;`);
-    expect(out).toContain('a.foo()');
+  it("member-normalize：bracket → dot", async () => {
+    const out = await apply(
+      memberNormalize,
+      `a['foo'](); b['not-id'](); c['$valid_1']++;`
+    );
+
+    expect(out).toContain("a.foo()");
     expect(out).toContain(`b['not-id']()`);
-    expect(out).toContain('c.$valid_1++');
+    expect(out).toContain("c.$valid_1++");
   });
 
-  it('dead-code：常量 if 折叠 + 不可达语句删除', async () => {
-    const out = await apply(deadCode, `function f(){ if ('a' !== 'a') { junk(); } return 1; var dead = 2; }`);
-    expect(out).not.toContain('junk');
-    expect(out).not.toContain('dead');
+  it("dead-code：常量 if 折叠 + 不可达语句删除", async () => {
+    const out = await apply(
+      deadCode,
+      `function f(){ if ('a' !== 'a') { junk(); } return 1; var dead = 2; }`
+    );
+
+    expect(out).not.toContain("junk");
+    expect(out).not.toContain("dead");
   });
 
-  it('split-sequences：语句级序列拆分', async () => {
-    const out = await apply(splitSequences, `function f(){ (a(), b(), c()); return (x(), y); }`);
-    expect(out).toContain('a();');
-    expect(out).toContain('b();');
-    expect(out).toContain('c();');
-    expect(out).toContain('x();');
-    expect(out).toContain('return y;');
+  it("split-sequences：语句级序列拆分", async () => {
+    const out = await apply(
+      splitSequences,
+      `function f(){ (a(), b(), c()); return (x(), y); }`
+    );
+
+    expect(out).toContain("a();");
+    expect(out).toContain("b();");
+    expect(out).toContain("c();");
+    expect(out).toContain("x();");
+    expect(out).toContain("return y;");
   });
 
-  it('inline-proxy-functions：转发壳内联', async () => {
-    const out = await apply(inlineProxyFunctions, `function p(a, b) { return real(a, b); } function caller() { return p(1, 2); } function real(a, b) { return a + b; }`);
-    expect(out).toContain('real(1, 2)');
-    expect(out).not.toContain('function p(');
+  it("inline-proxy-functions：转发壳内联", async () => {
+    const out = await apply(
+      inlineProxyFunctions,
+      `function p(a, b) { return real(a, b); } function caller() { return p(1, 2); } function real(a, b) { return a + b; }`
+    );
+
+    expect(out).toContain("real(1, 2)");
+    expect(out).not.toContain("function p(");
   });
 
-  it('unflatten-cff：标准分发器还原', async () => {
+  it("unflatten-cff：标准分发器还原", async () => {
     const code = `
 function work() {
   var out = '';
@@ -85,8 +113,9 @@ function work() {
   }
   return out;
 }`;
+
     const out = await apply(unflattenCff, code);
-    expect(out).not.toContain('switch');
+    expect(out).not.toContain("switch");
     expect(out).not.toContain(`'2|0|1'`);
     // 顺序必须按 2,0,1 → b a c
     const b = out.indexOf("out += 'b'");
@@ -97,139 +126,240 @@ function work() {
     expect(c).toBeGreaterThan(a);
   });
 
-  it('demangle：hex 名重命名', async () => {
-    const out = await apply(demangleNames, `var _0x4a3b = 1; function _0xdead(_0xfeed) { return _0xfeed + _0x4a3b; }`);
-    expect(out).not.toMatch(/_0x/);
-    expect(out).toMatch(/v_\d+/);
+  it("demangle：hex 名重命名", async () => {
+    const out = await apply(
+      demangleNames,
+      `var _0x4a3b = 1; function _0xdead(_0xfeed) { return _0xfeed + _0x4a3b; }`
+    );
+
+    expect(out).not.toMatch(/_0x/u);
+    expect(out).toMatch(/v_\d+/u);
   });
 });
 
-describe('fold-jsfuck 单测', () => {
-  it('charset 原子折叠为字面量（字符访问 + 拼接）', async () => {
-    const out = await apply(foldJsfuck, `var s = (![]+[])[+!+[]]+(![]+[])[+[]];`);
+describe("fold-jsfuck 单测", () => {
+  it("charset 原子折叠为字面量（字符访问 + 拼接）", async () => {
+    const out = await apply(
+      foldJsfuck,
+      `var s = (![]+[])[+!+[]]+(![]+[])[+[]];`
+    );
+
     expect(out).toContain(`"af"`);
   });
 
-  it('数字原子折叠 + 调用根保持（payload 执行调用禁止求值）', async () => {
-    const out = await apply(foldJsfuck, `var n = +[]+!+[]; foo((![]+[])[+[]]);`);
-    expect(out).toContain('n = 1');
+  it("数字原子折叠 + 调用根保持（payload 执行调用禁止求值）", async () => {
+    const out = await apply(
+      foldJsfuck,
+      `var n = +[]+!+[]; foo((![]+[])[+[]]);`
+    );
+
+    expect(out).toContain("n = 1");
     expect(out).toContain('foo("f")');
   });
 
   it('函数/对象结果跳过（[]["filter"] 保持原样）', async () => {
-    const out = await apply(foldJsfuck, `[][((![]+[])[+[]]+(!+[]+[])[+!+[]+!+[]+!+[]+!+[]]+(![]+[])[+!+[]+!+[]]+(![]+[])[+!+[]+!+[]])];`);
+    const out = await apply(
+      foldJsfuck,
+      `[][((![]+[])[+[]]+(!+[]+[])[+!+[]+!+[]+!+[]+!+[]]+(![]+[])[+!+[]+!+[]]+(![]+[])[+!+[]+!+[]])];`
+    );
+
     // []["truefalse..."]——成员访问求值为 undefined 也回填为 undefined? 不：undefined 不在回填类型内
-    expect(out).toContain('[');
+    expect(out).toContain("[");
   });
 });
 
-describe('purify-closures 单测', () => {
-  it('提升策略：单赋值字面量捕获 + 函数搬移到模块顶层', async () => {
-    const out = await apply(purifyClosures, `(function(){ var pool=['a','b']; function dec(i){return pool[i];} console.log(dec(1)); })();`);
+describe("purify-closures 单测", () => {
+  it("提升策略：单赋值字面量捕获 + 函数搬移到模块顶层", async () => {
+    const out = await apply(
+      purifyClosures,
+      `(function(){ var pool=['a','b']; function dec(i){return pool[i];} console.log(dec(1)); })();`
+    );
+
     // 池与函数都到模块顶层（第一行是 var 声明；IIFE 内不再有 function 声明）
-    expect(out.trim().startsWith('var pool')).toBe(true);
-    expect(out).toContain('function dec(i)');
-    expect((out.match(/var pool/g) ?? []).length).toBe(1);
+    // oxlint-disable-next-line vitest/prefer-to-be-truthy -- startsWith 返回布尔，toBeTruthy 会放过非布尔真值（弱化断言）
+    expect(out.trim().startsWith("var pool")).toBe(true);
+    expect(out).toContain("function dec(i)");
+    expect(out.match(/var pool/gu) ?? []).toHaveLength(1);
   });
 
-  it('参数化策略：重赋值捕获变为前导参数（时间语义保持）', async () => {
-    const out = await apply(purifyClosures, `(function(){ var c=0; function f(){ return 'v'+c; } c=5; console.log(f()); })();`);
-    expect(out).toContain('function f(c)');
-    expect(out).toContain('f(c)');
+  it("参数化策略：重赋值捕获变为前导参数（时间语义保持）", async () => {
+    const out = await apply(
+      purifyClosures,
+      `(function(){ var c=0; function f(){ return 'v'+c; } c=5; console.log(f()); })();`
+    );
+
+    expect(out).toContain("function f(c)");
+    expect(out).toContain("f(c)");
   });
 
-  it('递归自引用不是捕获（自引用漏网曾致二次 remove 崩溃）', async () => {
-    const out = await apply(purifyClosures, `(function(){ var m=[1,2]; function r(i){ if(i<=0) return 0; return m[i-1]+r(i-1); } console.log(r(2)); })();`);
-    expect(out.trim().startsWith('var m')).toBe(true);
-    expect(out.match(/function r\(/g)?.length).toBe(1);
+  it("递归自引用不是捕获（自引用漏网曾致二次 remove 崩溃）", async () => {
+    const out = await apply(
+      purifyClosures,
+      `(function(){ var m=[1,2]; function r(i){ if(i<=0) return 0; return m[i-1]+r(i-1); } console.log(r(2)); })();`
+    );
+
+    // oxlint-disable-next-line vitest/prefer-to-be-truthy -- startsWith 返回布尔，toBeTruthy 会放过非布尔真值（弱化断言）
+    expect(out.trim().startsWith("var m")).toBe(true);
+    expect(out.match(/function r\(/gu)?.length).toBe(1);
   });
 
-  it('安全栅栏：逃逸（return F）/ F 内写捕获 → 不动', async () => {
-    const escape = await apply(purifyClosures, `(function(){ var p=[1]; function d(i){return p[i];} return d; })()()(0);`);
-    expect(escape).toContain('(function');
-    const written = await apply(purifyClosures, `(function(){ var c=0; function f(){ return c++; } f(); })();`);
-    expect(written).toContain('c++');
+  it("安全栅栏：逃逸（return F）/ F 内写捕获 → 不动", async () => {
+    const escaped = await apply(
+      purifyClosures,
+      `(function(){ var p=[1]; function d(i){return p[i];} return d; })()()(0);`
+    );
+
+    expect(escaped).toContain("(function");
+
+    const written = await apply(
+      purifyClosures,
+      `(function(){ var c=0; function f(){ return c++; } f(); })();`
+    );
+
+    expect(written).toContain("c++");
   });
 });
 
-describe('fold-pure-calls 单测', () => {
-  it('money-shot：池+解码器（零家族检测）→ 明文折叠', async () => {
-    const out = await apply(foldPureCalls, `
+describe("fold-pure-calls 单测", () => {
+  it("money-shot：池+解码器（零家族检测）→ 明文折叠", async () => {
+    const out = await apply(
+      foldPureCalls,
+      `
 var pool = ['log', 'SECRET_ALPHA', 'join'];
 function dec(i) { return pool[i]; }
 (function(){ console.log(dec(1)); })();
-`);
+`
+    );
+
     expect(out).toContain('"SECRET_ALPHA"');
-    expect(out).not.toContain('dec(1)');
+    expect(out).not.toContain("dec(1)");
   });
 
-  it('内建链折叠（数字入参——字符串入参走方向守卫不折）', async () => {
-    const out = await apply(foldPureCalls, `
+  it("内建链折叠（数字入参——字符串入参走方向守卫不折）", async () => {
+    const out = await apply(
+      foldPureCalls,
+      `
 function h(c) { return String.fromCharCode(c + 1); }
 (function(){ console.log(h(97)); })();
-`);
+`
+    );
+
     expect(out).toContain('"b"');
   });
 
-  it('方向守卫：字符串入参加密函数不折叠（负优化拦截）', async () => {
-    const out = await apply(foldPureCalls, `
+  it("方向守卫：字符串入参加密函数不折叠（负优化拦截）", async () => {
+    const out = await apply(
+      foldPureCalls,
+      `
 var key = "K";
 function encrypt(v) { var o = ''; for (var i = 0; i < v.length; i++) { o += String.fromCharCode(v.charCodeAt(i) ^ key.charCodeAt(0)); } return o; }
 (function(){ var c = encrypt("hello world"); console.log(c); })();
-`);
+`
+    );
+
     expect(out).toContain('encrypt("hello world")');
   });
 
-  it('负例：副作用 / 模块变量重赋值 / Math.random 依赖', async () => {
-    const a = await apply(foldPureCalls, `function f(){ console.log(1); return 2; } f();`);
-    expect(a).toContain('console.log(1)');
-    const b = await apply(foldPureCalls, `var k=1; function f(x){return k+x;} var a=f(1); k=5; var b=f(2);`);
-    expect(b).toContain('f(1)');
-    const c = await apply(foldPureCalls, `function f(){ return Math.random(); } var a = f();`);
-    expect(c).toContain('Math.random()');
+  it("负例：副作用 / 模块变量重赋值 / Math.random 依赖", async () => {
+    const a = await apply(
+      foldPureCalls,
+      `function f(){ console.log(1); return 2; } f();`
+    );
+
+    expect(a).toContain("console.log(1)");
+
+    const b = await apply(
+      foldPureCalls,
+      `var k=1; function f(x){return k+x;} var a=f(1); k=5; var b=f(2);`
+    );
+
+    expect(b).toContain("f(1)");
+
+    const c = await apply(
+      foldPureCalls,
+      `function f(){ return Math.random(); } var a = f();`
+    );
+
+    expect(c).toContain("Math.random()");
   });
 });
 
-describe('propagate-constants + prune-dead-decls 单测', () => {
-  it('单赋值字面量局部变量内联（文本位置必须在声明后）', async () => {
-    const out = await apply(propagateConstants, `function main(){ var v = 'abc'; console.log(v, v); } main();`);
+describe("propagate-constants + prune-dead-decls 单测", () => {
+  it("单赋值字面量局部变量内联（文本位置必须在声明后）", async () => {
+    const out = await apply(
+      propagateConstants,
+      `function main(){ var v = 'abc'; console.log(v, v); } main();`
+    );
+
     expect(out).toContain("'abc', 'abc'");
-    expect(out).not.toContain('var v');
+    expect(out).not.toContain("var v");
   });
 
-  it('负例：声明前执行的引用不内联（提格语义）', async () => {
-    const out = await apply(propagateConstants, `function main(){ function g(){ return v; } var r = g(); var v = 'x'; return r + v; } main();`);
-    expect(out).toContain('var v');
+  it("负例：声明前执行的引用不内联（提格语义）", async () => {
+    const out = await apply(
+      propagateConstants,
+      `function main(){ function g(){ return v; } var r = g(); var v = 'x'; return r + v; } main();`
+    );
+
+    expect(out).toContain("var v");
   });
 
-  it('死声明清理（不动点）+ eval/动态字符串防误删', async () => {
-    const out = await apply(pruneDeadDecls, `var used = 1; var dead = 2; function fA(){ return used; } function fDead(){} fA();`);
-    expect(out).not.toContain('fDead');
-    expect(out).not.toContain('dead');
-    expect(out).toContain('fA');
+  it("死声明清理（不动点）+ eval/动态字符串防误删", async () => {
+    const out = await apply(
+      pruneDeadDecls,
+      `var used = 1; var dead = 2; function fA(){ return used; } function fDead(){} fA();`
+    );
+
+    expect(out).not.toContain("fDead");
+    expect(out).not.toContain("dead");
+    expect(out).toContain("fA");
     const evalKeep = await apply(pruneDeadDecls, `function f(){} eval('f()');`);
-    expect(evalKeep).toContain('function f');
-    const dynKeep = await apply(pruneDeadDecls, `function f(){} var k = 'f'; globalThis[k];`);
-    expect(dynKeep).toContain('function f');
+    expect(evalKeep).toContain("function f");
+
+    const dynKeep = await apply(
+      pruneDeadDecls,
+      `function f(){} var k = 'f'; globalThis[k];`
+    );
+
+    expect(dynKeep).toContain("function f");
   });
 });
 
-describe('llm-rewrite 单测（LLM 提案，governor 裁决）', () => {
-  it('mock：恒等简化提案被应用', async () => {
-    const tr = createLLMRewriteTransform({ provider: 'mock' });
-    const out = await apply(tr, `var t = 0;\nfunction f(x) { t = t + 1; return x; }\nf(1);`);
-    expect(out).toContain('t += 1');
+describe("llm-rewrite 单测（LLM 提案，governor 裁决）", () => {
+  it("mock：恒等简化提案被应用", async () => {
+    const tr = createLLMRewriteTransform({ provider: "mock" });
+
+    const out = await apply(
+      tr,
+      `var t = 0;\nfunction f(x) { t = t + 1; return x; }\nf(1);`
+    );
+
+    expect(out).toContain("t += 1");
   });
 
-  it('custom：垃圾输出跳过（形态校验）', async () => {
-    const tr = createLLMRewriteTransform({ provider: 'custom', custom: async () => 'not valid js ((((' });
+  it("custom：垃圾输出跳过（形态校验）", async () => {
+    const tr = createLLMRewriteTransform({
+      provider: "custom",
+      // oxlint-disable-next-line eslint/require-await -- provider 契约返回 Promise（promise-function-async 同样强制）；无 await 只是恒定返回值，改掉会变同步函数
+      custom: async () => "not valid js ((((",
+    });
+
     const r = await tr.run(parseCode(`function f(){return 1;} f();`), ctx());
+    // oxlint-disable-next-line vitest/prefer-to-be-falsy -- 断言"未变更"必须恰为 false，toBeFalsy 会放过 undefined 等假值
     expect(r.changed).toBe(false);
   });
 
-  it('custom：provider 抛错 → no-op（失败隔离）', async () => {
-    const tr = createLLMRewriteTransform({ provider: 'custom', custom: async () => { throw new Error('boom'); } });
+  it("custom：provider 抛错 → no-op（失败隔离）", async () => {
+    const tr = createLLMRewriteTransform({
+      provider: "custom",
+      // oxlint-disable-next-line eslint/require-await -- provider 契约返回 Promise；async 抛错→rejected promise 正是本用例验证的失败隔离路径
+      custom: async () => {
+        throw new Error("boom");
+      },
+    });
+
     const r = await tr.run(parseCode(`function f(){return 1;} f();`), ctx());
+    // oxlint-disable-next-line vitest/prefer-to-be-falsy -- 断言"未变更"必须恰为 false，toBeFalsy 会放过 undefined 等假值
     expect(r.changed).toBe(false);
   });
 });

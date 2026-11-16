@@ -10,7 +10,7 @@ interface Transform {
   /** 变换名（报告中显示） */
   name: string;
   /** safe = 纯 AST 变换（无执行求值）；unsafe = 可能改变语义（锚库验证把关） */
-  risk: 'safe' | 'unsafe';
+  risk: "safe" | "unsafe";
   /** 执行变换（可异步——需要封闭运行时求值时） */
   run(ast: t.File, ctx: TransformContext): Promise<TransformResult>;
 }
@@ -21,7 +21,7 @@ interface TransformContext {
   /** 家族识别结果 */
   detection: Detection;
   /** 执行后端 */
-  backend: 'quickjs' | 'nodevm' | 'native';
+  backend: "quickjs" | "nodevm" | "native";
   timeoutMs?: number;
   memoryLimitBytes?: number;
   /** 验证锚库（trace 驱动的变换在此采样执行事实） */
@@ -30,8 +30,8 @@ interface TransformContext {
 
 interface TransformResult {
   changed: boolean;
-  notes: string[];               // 报告中显示
-  renamePairs?: Array<{ from: string; to: string }>;  // 供 governor 同步 pins
+  notes: string[]; // 报告中显示
+  renamePairs?: Array<{ from: string; to: string }>; // 供 governor 同步 pins
 }
 ```
 
@@ -39,13 +39,14 @@ interface TransformResult {
 
 ```typescript
 // packages/transforms/src/my-transform.ts
-import * as t from '@babel/types';
-import { traverse } from '@jsseal/ast';
-import { result, type Transform } from './types';
+import * as t from "@babel/types";
+import { traverse } from "@jsseal/ast";
+
+import { result, type Transform } from "./types";
 
 export const myTransform: Transform = {
-  name: 'my-transform',
-  risk: 'safe',
+  name: "my-transform",
+  risk: "safe",
   async run(ast, ctx) {
     let count = 0;
     traverse(ast, {
@@ -53,7 +54,7 @@ export const myTransform: Transform = {
       CallExpression(path) {
         // ... 检测模式并替换
         if (shouldReplace(path)) {
-          path.replaceWith(t.stringLiteral('replacement'));
+          path.replaceWith(t.stringLiteral("replacement"));
           count++;
         }
       },
@@ -67,11 +68,11 @@ export const myTransform: Transform = {
 
 ```typescript
 // packages/transforms/src/index.ts
-import { myTransform } from './my-transform';
+import { myTransform } from "./my-transform";
 
 export const defaultPipeline: Transform[] = [
   // ... 现有变换
-  myTransform,  // 添加到合适位置
+  myTransform, // 添加到合适位置
 ];
 ```
 
@@ -96,10 +97,10 @@ return result(changed, [
 // 使用封闭运行时求值（需要 ctx.backend === 'native'）
 const out = await runSealed({
   code: ctx.code,
-  mode: 'replay',
+  mode: "replay",
   tapes: ctx.corpus.samples[0].tapes,
   backend: ctx.backend,
-  trace: { callArgs: true, cretFns: ['decoderName'] },
+  trace: { callArgs: true, cretFns: ["decoderName"] },
 });
 ```
 
@@ -108,14 +109,14 @@ const out = await runSealed({
 ### LLM Provider 接口
 
 ```typescript
-type LLMProvider = 'mock' | 'openai' | 'anthropic' | 'ollama';
+type LLMProvider = "mock" | "openai" | "anthropic" | "ollama";
 
 interface LLMRenameOptions {
   provider: LLMProvider;
-  apiKey?: string;       // openai/anthropic 需要
-  model?: string;        // 默认 gpt-4o-mini / claude-sonnet / qwen2.5-coder
-  baseUrl?: string;      // ollama 本地服务地址
-  maxNames?: number;     // 每轮最多重命名数（默认 50）
+  apiKey?: string; // openai/anthropic 需要
+  model?: string; // 默认 gpt-4o-mini / claude-sonnet / qwen2.5-coder
+  baseUrl?: string; // ollama 本地服务地址
+  maxNames?: number; // 每轮最多重命名数（默认 50）
   contextLines?: number; // 每个标识符的上下文行数（默认 3）
 }
 ```
@@ -123,17 +124,17 @@ interface LLMRenameOptions {
 ### 使用方式
 
 ```typescript
-import { createLLMRenameTransform } from '@jsseal/transforms';
+import { createLLMRenameTransform } from "@jsseal/transforms";
 
 const llmRename = createLLMRenameTransform({
-  provider: 'mock',        // 离线测试用确定性启发式
+  provider: "mock", // 离线测试用确定性启发式
   // provider: 'openai', apiKey: 'sk-...'  // 真实 LLM
   // provider: 'ollama', baseUrl: 'http://localhost:11434'  // 本地模型
 });
 
 const report = await deobfuscate({
   code,
-  transforms: [...defaultPipeline, llmRename],  // 附加到管线末尾
+  transforms: [...defaultPipeline, llmRename], // 附加到管线末尾
 });
 ```
 
@@ -141,20 +142,20 @@ const report = await deobfuscate({
 
 mock 后端根据使用模式推断语义名（约 30 种模式）：
 
-| 使用模式 | 建议名 |
-|---|---|
-| `.charCodeAt` / `.charAt` | `charBuf` |
-| `.push` / `.pop` | `stack` |
-| `.split` / `.join` | `parts` |
+| 使用模式                    | 建议名     |
+| --------------------------- | ---------- |
+| `.charCodeAt` / `.charAt`   | `charBuf`  |
+| `.push` / `.pop`            | `stack`    |
+| `.split` / `.join`          | `parts`    |
 | `JSON.parse` / `.stringify` | `jsonData` |
-| `atob` / `decode` | `decoded` |
-| `encode` / `encrypt` | `encoded` |
-| `.length` / `.size` | `count` |
-| `setTimeout` / `delay` | `delayMs` |
-| `catch` / `error` | `err` |
-| `for(` / 循环 | `i` |
-| 默认（var 赋值） | `value` |
-| 默认（函数声明） | `fn` |
+| `atob` / `decode`           | `decoded`  |
+| `encode` / `encrypt`        | `encoded`  |
+| `.length` / `.size`         | `count`    |
+| `setTimeout` / `delay`      | `delayMs`  |
+| `catch` / `error`           | `err`      |
+| `for(` / 循环               | `i`        |
+| 默认（var 赋值）            | `value`    |
+| 默认（函数声明）            | `fn`       |
 
 同名建议自动加序号后缀：`charBuf` → `charBuf2` → `charBuf3`
 
@@ -162,11 +163,11 @@ mock 后端根据使用模式推断语义名（约 30 种模式）：
 
 ```typescript
 async function myProvider(
-  names: Array<{ name: string; context: string }>,
+  names: Array<{ name: string; context: string }>
 ): Promise<Array<{ old: string; new: string }>> {
   // 发送到你的 LLM 服务
-  const response = await fetch('https://your-llm.example.com/api', {
-    method: 'POST',
+  const response = await fetch("https://your-llm.example.com/api", {
+    method: "POST",
     body: JSON.stringify({ names }),
   });
   const data = await response.json();
@@ -183,16 +184,19 @@ async function myProvider(
 提案都在验证锚库上重放，行为恒等才提交，失败回滚。
 
 ```typescript
-import { createLLMRewriteTransform } from '@jsseal/transforms';
+import { createLLMRewriteTransform } from "@jsseal/transforms";
 
 const llmRewrite = createLLMRewriteTransform({
-  provider: 'anthropic',            // mock / openai / anthropic / ollama / custom
-  apiKey: 'sk-...',
-  instructions: '合并重复的字符串拼接',  // 可选附加指令
+  provider: "anthropic", // mock / openai / anthropic / ollama / custom
+  apiKey: "sk-...",
+  instructions: "合并重复的字符串拼接", // 可选附加指令
   // custom: (code) => myLLMService(code),   // 任意 LLM 服务注入点
 });
 
-const report = await deobfuscate({ code, transforms: [...defaultPipeline, llmRewrite] });
+const report = await deobfuscate({
+  code,
+  transforms: [...defaultPipeline, llmRewrite],
+});
 // report.applied 含 llm-rewrite（提案被锚库采纳）
 // report.rolledBack 含 llm-rewrite = 提案被裁决否决（宪法正常工作）
 ```
@@ -206,24 +210,25 @@ const report = await deobfuscate({ code, transforms: [...defaultPipeline, llmRew
 ### 单元测试
 
 ```typescript
+import { parseCode, printCode } from "@jsseal/ast";
 // packages/transforms/src/__tests__/my-transform.test.ts
-import { describe, expect, it } from 'vitest';
-import { parseCode, printCode } from '@jsseal/ast';
-import { myTransform } from '../my-transform';
-import type { TransformContext } from '../types';
+import { describe, expect, it } from "vitest";
 
-describe('my-transform', () => {
-  it('基本模式匹配', async () => {
+import { myTransform } from "../my-transform";
+import type { TransformContext } from "../types";
+
+describe("my-transform", () => {
+  it("基本模式匹配", async () => {
     const code = `var x = pattern("test");`;
     const ctx: TransformContext = {
       code,
-      detection: { family: 'plain', confidence: 0.5, features: [] },
-      backend: 'quickjs',
+      detection: { family: "plain", confidence: 0.5, features: [] },
+      backend: "quickjs",
     };
     const ast = parseCode(code);
     const r = await myTransform.run(ast, ctx);
     expect(r.changed).toBe(true);
-    expect(printCode(ast)).toContain('replacement');
+    expect(printCode(ast)).toContain("replacement");
   });
 });
 ```
@@ -232,15 +237,19 @@ describe('my-transform', () => {
 
 ```typescript
 // 需要 native 引擎
-import { isEngineAvailable } from '@jsseal/engine-native';
+import { isEngineAvailable } from "@jsseal/engine-native";
 const nativeIt = isEngineAvailable() ? it : it.skip;
 
-nativeIt('真实样本还原', async () => {
-  const code = load('my-fixture');
-  const report = await deobfuscate({ code, samples: 3 });
-  expect(report.finalValidation?.pass).toBe(true);
-  expect(report.finalCode).toContain('EXPECTED_SECRET');
-}, 120_000);
+nativeIt(
+  "真实样本还原",
+  async () => {
+    const code = load("my-fixture");
+    const report = await deobfuscate({ code, samples: 3 });
+    expect(report.finalValidation?.pass).toBe(true);
+    expect(report.finalCode).toContain("EXPECTED_SECRET");
+  },
+  120_000
+);
 ```
 
 ### 测试纪律

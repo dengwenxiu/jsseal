@@ -11,7 +11,7 @@
  *  7. 环境模板：window 别名 / navigator 最小模板
  */
 
-import type { EnvTemplate, EntrySpec, FunctionPin, SeedTapes } from './types';
+import type { EnvTemplate, EntrySpec, FunctionPin, SeedTapes } from "./types";
 
 export interface NetFixture {
   status?: number;
@@ -19,7 +19,7 @@ export interface NetFixture {
 }
 
 export interface PreludeConfig {
-  mode: 'record' | 'replay';
+  mode: "record" | "replay";
   tapes: SeedTapes;
   pins: FunctionPin[];
   entry?: EntrySpec;
@@ -34,7 +34,7 @@ export interface PreludeConfig {
   envTrace?: boolean;
 }
 
-export function buildPrelude(cfg: PreludeConfig): string {
+export const buildPrelude = (cfg: PreludeConfig): string => {
   // 注入配置数据（JSON 安全）
   const data = JSON.stringify({
     mode: cfg.mode,
@@ -43,14 +43,16 @@ export function buildPrelude(cfg: PreludeConfig): string {
     engineSeeds: cfg.engineSeeds === true,
     envProbe: cfg.envProbe === true,
     envTrace: cfg.envTrace === true,
-    netFixtures: cfg.netFixtures || {},
+    netFixtures: cfg.netFixtures ?? {},
     env: {
-      userAgent: 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36',
-      language: 'zh-CN',
-      platform: 'MacIntel',
+      userAgent:
+        "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+      language: "zh-CN",
+      platform: "MacIntel",
       ...cfg.env,
     },
   });
+
   return `(function () {
 'use strict';
 var __cfg = ${data};
@@ -665,12 +667,16 @@ __jsseal.dump = function () {
   };
 };
 })();`;
-}
+};
 
 /** 入口调用尾巴（与用户代码同属一个 program，保持顶层作用域语义） */
-export function buildEntryTail(entry: EntrySpec | undefined): string {
-  if (!entry) return '';
+export const buildEntryTail = (entry: EntrySpec | undefined): string => {
+  if (!entry) {
+    return "";
+  }
+
   const argsJson = JSON.stringify(entry.args ?? []);
+
   return `
 ;try {
   var __e = globalThis[${JSON.stringify(entry.name)}];
@@ -684,7 +690,7 @@ export function buildEntryTail(entry: EntrySpec | undefined): string {
   globalThis.__jsseal.ok = false;
   globalThis.__jsseal.thrown = globalThis.__jsseal.json(e);
 }`;
-}
+};
 
 /** 完成值捕获 + dump 尾巴（backend 在 evalCode 之后注入执行） */
 export const CAPTURE_TAIL = `
@@ -701,9 +707,12 @@ export const CAPTURE_TAIL = `
   }
 } catch (e) {}`;
 
-export const DUMP_EXPR = 'JSON.stringify(globalThis.__jsseal.dump())';
+export const DUMP_EXPR = "JSON.stringify(globalThis.__jsseal.dump())";
 
 /** 空磁带（record 模式起始值 / 默认值） */
-export function emptyTapes(): SeedTapes {
-  return { random: [], date: [], time: [], crypto: [] };
-}
+export const emptyTapes = (): SeedTapes => ({
+  random: [],
+  date: [],
+  time: [],
+  crypto: [],
+});

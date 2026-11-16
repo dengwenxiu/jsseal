@@ -1,8 +1,6 @@
 # jsseal — 确定性封闭运行时 JS 反混淆器
 
-[![ci](https://github.com/dengwenxiu/jsseal/actions/workflows/ci.yml/badge.svg)](https://github.com/dengwenxiu/jsseal/actions/workflows/ci.yml)
-[![license](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
-[![node](https://img.shields.io/badge/node-%E2%89%A518-green.svg)](docs/BUILDING.md)
+[![ci](https://github.com/dengwenxiu/jsseal/actions/workflows/ci.yml/badge.svg)](https://github.com/dengwenxiu/jsseal/actions/workflows/ci.yml) [![license](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE) [![node](https://img.shields.io/badge/node-%E2%89%A518-green.svg)](docs/BUILDING.md)
 
 > **核心原理（一句话）**：反混淆的本质是等价改写，而程序等价性不可判定；
 > jsseal 在引擎级封闭一切非确定性（随机/时间/网络/时钟），把任意混淆程序
@@ -59,7 +57,7 @@ npm run -w @jsseal/web start    # 构建 + 本地服务 → http://127.0.0.1:864
 ## 文档
 
 | 文档 | 内容 |
-|---|---|
+| --- | --- |
 | [CLI 指南](docs/CLI-GUIDE.md) | 命令/选项/报告字段/常见工作流 |
 | [方法论原理](docs/PRINCIPLES.md) | 环境封闭/锚库验证/恒等变换/污点传播 |
 | [先进性与定位](docs/POSITIONING.md) | 时代坐标/理论创新/与 AST 工具及 LLM 的对比 |
@@ -73,7 +71,7 @@ npm run -w @jsseal/web start    # 构建 + 本地服务 → http://127.0.0.1:864
 ## 实战成绩（4 个样本全部 ✅，3 个来自真实野外）
 
 | 样本 | 家族 | 大小变化 | 还原效果 |
-|---|---|---|---|
+| --- | --- | --- | --- |
 | synchrony 官方 obfuscator-io.js | obfuscator.io | 20K→8.4K (-59%) | 字符串池明文+hex 名还原 |
 | jsfuck.js（编码器生成全编码） | JSFuck | 3.0K→24B (-99%) | `console.log(1234567890)` 明文 |
 | sojsonv7/sample_189.js | sojson v7 (jsjiami) | **101K→41B (-99.96%)** | 完整业务逻辑（2 行） |
@@ -81,20 +79,20 @@ npm run -w @jsseal/web start    # 构建 + 本地服务 → http://127.0.0.1:864
 
 ## 支持矩阵
 
-| 家族 | 状态 |
-|---|---|
-| obfuscator.io 全配置 | ✅ |
-| sojson v5–v7 / jsjiami | ✅ |
+| 家族                                     | 状态                     |
+| ---------------------------------------- | ------------------------ |
+| obfuscator.io 全配置                     | ✅                       |
+| sojson v5–v7 / jsjiami                   | ✅                       |
 | jsconfuser / js-confuser（含状态机 CFF） | ✅（2.1.3 动态 case 🔶） |
-| packer / eval 链 / ctor 链 | ✅ |
-| 动态 CFF（运行时执行序） | ✅ |
-| JSFuck 全编码（[]()!+ 原子折叠） | ✅ |
-| JSVMP 虚拟化 | ❌ |
+| packer / eval 链 / ctor 链               | ✅                       |
+| 动态 CFF（运行时执行序）                 | ✅                       |
+| JSFuck 全编码（[](<>)!+ 原子折叠）       | ✅                       |
+| JSVMP 虚拟化                             | ❌                       |
 
 ## 先进性：三个时代，一个跃迁
 
 | 时代 | 范式 | 正确性 |
-|---|---|---|
+| --- | --- | --- |
 | AST 时代（~2018，synchrony/webcrack/REstringer） | 静态规则匹配，语法层、局部 | 无保证——规则错了无声产出错码 |
 | 引擎时代（**jsseal**） | 环境封闭成纯函数 → 全局语义优化 | **构造性恒等**：每次变换锚库逐位验证，失败即回滚 |
 | AI 时代（CASCADE 等） | LLM 改写/LLM+IR | 依赖 LLM 可靠性，无行为等价证明 |
@@ -125,7 +123,7 @@ packages/
 ## 核心能力
 
 | 能力 | 实现 |
-|---|---|
+| --- | --- |
 | 种子封闭 | Math.random/Date/performance/crypto → 录制/重放磁带（引擎级，guest 不可觉察） |
 | 虚拟时钟 | setTimeout/Promise/rAF 确定性调度（异步样本可封闭） |
 | 网络 VCR | 确定性罐头响应 + fixture 注入 + netLog（锚库可观测） |
@@ -173,8 +171,7 @@ jsseal 与 [**jvmp**](https://jvmp.cn)（Java 代码虚拟化保护，闭源）�
 
 攻击侧的每一条还原路线，反哺防护侧的对抗设计；防护侧的每一代加固，
 又是攻击能力的试金石。jsseal 的 JSVMP 反虚拟化路线
-（[POSITIONING §5.2](docs/POSITIONING.md)）正出自构建 VMP 的同一批人——
-**懂造盾，才更懂破盾**。
+（[POSITIONING §5.2](docs/POSITIONING.md)）正出自构建 VMP 的同一批人—— **懂造盾，才更懂破盾**。
 
 > 需要保护 Java / Android 代码？→ **[jvmp.cn](https://jvmp.cn)**
 > （Gradle / Maven / Android 插件与云端服务）

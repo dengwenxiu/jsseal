@@ -1,7 +1,7 @@
 /**
  * 对象键映射还原（obfuscator.io 对象映射代理）：
  *
- *   var m = {'k1': function (a, b) { return a + b; }, 'k2': 'const'};
+ *   `var m = {'k1': function (a, b) { return a + b; }, 'k2': 'const'};`
  *   m['k1'](x, y)      → x + y
  *   m['k2']            → 'const'
  *
@@ -10,53 +10,202 @@
  * 全部引用替换后删除声明。
  */
 
-import * as t from '@babel/types';
-import { traverse } from '@jsseal/ast';
-import type { NodePath } from '@babel/traverse';
-import { result, type Transform } from './types';
+import type { NodePath } from "@babel/traverse";
+import * as t from "@babel/types";
+import { traverse } from "@jsseal/ast";
+
+import { result } from "./types";
+import type { Transform } from "./types";
 
 interface MappingFn {
   params: t.Identifier[];
   body: t.Expression;
 }
-type PropValue = { kind: 'fn'; fn: MappingFn } | { kind: 'lit'; node: t.Expression };
+
+type PropValue =
+  | { kind: "fn"; fn: MappingFn }
+  | { kind: "lit"; node: t.Expression };
+
+/** 遍历时跳过的节点键：位置/注释信息不属于 AST 结构 */
+const NON_CHILD_KEYS = new Set(["loc", "leadingComments", "trailingComments"]);
 
 /** 成员访问的静态键：m['k'] 或 m.k；动态键返回 null */
-function memberKey(m: t.MemberExpression): string | null {
+const memberKey = (m: t.MemberExpression): string | null => {
   if (m.computed) {
     return t.isStringLiteral(m.property) ? m.property.value : null;
   }
-  return t.isIdentifier(m.property) ? m.property.name : null;
-}
 
-function isSimpleArg(a: t.Node): boolean {
-  return t.isIdentifier(a) || t.isLiteral(a);
-}
+  return t.isIdentifier(m.property) ? m.property.name : null;
+};
+
+const isSimpleArg = (a: t.Node): boolean => t.isIdentifier(a) || t.isLiteral(a);
+
+/** 动态取到的值是否是 AST 节点（即带 type 字段的对象） */
+const isAstNode = (value: unknown): value is t.Node =>
+  typeof value === "object" && value !== null && "type" in value;
+
+/** 手工遍历裸 AST 节点（不进内层函数/类作用域）；visit 返回 true 表示停止下探该节点 */
+const walkNodeFields = (
+  node: t.Node,
+  visit: (child: t.Node) => boolean
+): void => {
+  if (visit(node) || t.isFunction(node) || t.isClass(node)) {
+    return;
+  }
+
+  for (const key of Object.keys(node)) {
+    if (NON_CHILD_KEYS.has(key)) {
+      continue;
+    }
+
+    // SAFETY: key 来自 Object.keys(node)，必然是节点自身的可枚举字段
+    // oxlint-disable-next-line typescript/no-unsafe-type-assertion, anti-slop/no-chained-type-assertions, anti-slop/no-unsafe-dictionary-type -- Babel 节点是判别联合，按字符串键遍历只能经 Record<string, unknown> 退到未知值：改成逐类型显式遍历会漏掉新增节点类型（行为不再覆盖全部 AST 形态）
+    const value = (node as unknown as Record<string, unknown>)[key];
+    const children: readonly unknown[] = Array.isArray(value) ? value : [value];
+
+    for (const child of children) {
+      if (isAstNode(child)) {
+        walkNodeFields(child, visit);
+      }
+    }
+  }
+};
 
 /** 统计 Identifier 在表达式中的出现次数 */
-function countUses(expr: t.Expression, name: string): number {
+const countUses = (expr: t.Expression, name: string): number => {
   let n = 0;
-  const walk = (node: t.Node): void => {
-    if (!node || typeof node !== 'object') return;
+
+  walkNodeFields(expr, (node) => {
     if (t.isIdentifier(node) && node.name === name) {
-      n++;
-      return;
+      n += 1;
+
+      return true;
     }
-    if (t.isFunction(node) || t.isClass(node)) return; // 内层作用域不看
-    for (const key of Object.keys(node)) {
-      if (key === 'loc' || key === 'leadingComments' || key === 'trailingComments') continue;
-      const v = (node as unknown as Record<string, unknown>)[key];
-      if (Array.isArray(v)) v.forEach((c) => c && typeof c === 'object' && 'type' in c && walk(c as t.Node));
-      else if (v && typeof v === 'object' && 'type' in (v as object)) walk(v as t.Node);
-    }
-  };
-  walk(expr);
+
+    return false;
+  });
+
   return n;
-}
+};
+
+/** 表达式体内是否出现 this/arguments（代入后会改变指向，必须跳过该映射函数） */
+const usesThisOrArguments = (body: t.Expression): boolean => {
+  let found = false;
+
+  walkNodeFields(body, (node) => {
+    if (
+      t.isThisExpression(node) ||
+      t.isIdentifier(node, { name: "arguments" })
+    ) {
+      found = true;
+
+      return true;
+    }
+
+    return false;
+  });
+
+  return found;
+};
+
+/** 属性键名：字符串字面量或标识符；其它（计算键等）返回 null */
+const propKey = (key: t.Node): string | null => {
+  if (t.isStringLiteral(key)) {
+    return key.value;
+  }
+
+  if (t.isIdentifier(key)) {
+    return key.name;
+  }
+
+  return null;
+};
+
+/** 属性值为"单 return + 仅用形参 + 不含 this/arguments"的函数时，返回其形参与返回表达式 */
+const asMappingFn = (value: t.Node): MappingFn | null => {
+  if (!t.isFunctionExpression(value) || value.id) {
+    return null;
+  }
+
+  const bodyStmts = value.body.body.filter((s) => !t.isEmptyStatement(s));
+  const [firstStmt] = bodyStmts;
+
+  if (
+    bodyStmts.length !== 1 ||
+    !t.isReturnStatement(firstStmt) ||
+    !firstStmt.argument
+  ) {
+    return null;
+  }
+
+  if (!value.params.every((p) => t.isIdentifier(p))) {
+    return null;
+  }
+
+  // 手工 walker，避免对裸节点 traverse
+  if (usesThisOrArguments(firstStmt.argument)) {
+    return null;
+  }
+
+  return { params: value.params, body: firstStmt.argument };
+};
+
+/** 解析映射对象的一个属性；形态不支持时返回 null */
+const parseMappingProp = (prop: t.Node): [string, PropValue] | null => {
+  if (!t.isObjectProperty(prop) || prop.computed) {
+    return null;
+  }
+
+  const key = propKey(prop.key);
+
+  if (key === null) {
+    return null;
+  }
+
+  const fn = asMappingFn(prop.value);
+
+  if (fn) {
+    return [key, { kind: "fn", fn }];
+  }
+
+  const { value } = prop;
+
+  if (
+    t.isStringLiteral(value) ||
+    t.isNumericLiteral(value) ||
+    t.isBooleanLiteral(value)
+  ) {
+    return [key, { kind: "lit", node: value }];
+  }
+
+  return null;
+};
+
+/** 标识符代入（在克隆的表达式上把引用标识符替换为实参） */
+const substitute = (
+  expr: t.Expression,
+  name: string,
+  arg: t.Node
+): t.Expression => {
+  const stmt = t.expressionStatement(t.cloneNode(expr));
+  const file = t.file(t.program([stmt]));
+
+  traverse(file, {
+    // oxlint-disable-next-line sonarjs/function-name -- 键名即 Babel traverse 的 visitor 类型名（大写驼峰），改名后不再是 visitReferencedIdentifier 的别名
+    ReferencedIdentifier(ip) {
+      if (ip.node.name === name) {
+        ip.replaceWith(t.cloneNode(arg));
+      }
+    },
+  });
+
+  return stmt.expression;
+};
 
 export const inlineObjectMapping: Transform = {
-  name: 'inline-object-mapping',
-  risk: 'unsafe',
+  name: "inline-object-mapping",
+  risk: "unsafe",
+  // oxlint-disable-next-line eslint/require-await -- Transform.run 的契约是 Promise（governor 统一 await）；实现全程同步，去掉 async 不改变行为但与同类变换签名不一致
   async run(ast) {
     let replacedCalls = 0;
     let replacedValues = 0;
@@ -67,111 +216,120 @@ export const inlineObjectMapping: Transform = {
     const declPaths = new Map<string, NodePath<t.VariableDeclarator>>();
 
     traverse(ast, {
+      // oxlint-disable-next-line sonarjs/function-name -- 键名即 Babel traverse 的 visitor 类型名（大写驼峰），改名后不再是 visitVariableDeclarator 的别名
       VariableDeclarator(path) {
-        const id = path.node.id;
-        const init = path.node.init;
-        if (!t.isIdentifier(id) || !t.isObjectExpression(init) || init.properties.length === 0) return;
-        const binding = path.scope.getBinding(id.name);
-        if (!binding || binding.constantViolations.length > 0) return; // 声明后不可重赋值
-        const props = new Map<string, PropValue>();
-        let ok = true;
-        for (const prop of init.properties) {
-          if (!t.isObjectProperty(prop) || prop.computed) {
-            ok = false;
-            break;
-          }
-          const key = t.isStringLiteral(prop.key) ? prop.key.value : t.isIdentifier(prop.key) ? prop.key.name : null;
-          if (key === null) {
-            ok = false;
-            break;
-          }
-          const v = prop.value;
-          if (t.isFunctionExpression(v) && !v.id) {
-            const bodyStmts = v.body.body.filter((s) => !t.isEmptyStatement(s));
-            if (bodyStmts.length !== 1 || !t.isReturnStatement(bodyStmts[0]) || !bodyStmts[0].argument) {
-              ok = false;
-              break;
-            }
-            if (!v.params.every((p) => t.isIdentifier(p))) {
-              ok = false;
-              break;
-            }
-            // 体内不允许 this/arguments（手工 walker，避免对裸节点 traverse）
-            let bad = false;
-            const body = bodyStmts[0].argument;
-            const scan = (node: t.Node): void => {
-              if (bad || !node || typeof node !== 'object') return;
-              if (t.isThisExpression(node) || t.isIdentifier(node, { name: 'arguments' })) {
-                bad = true;
-                return;
-              }
-              if (t.isFunction(node) || t.isClass(node)) return;
-              for (const key of Object.keys(node)) {
-                if (key === 'loc' || key === 'leadingComments' || key === 'trailingComments') continue;
-                const v = (node as unknown as Record<string, unknown>)[key];
-                if (Array.isArray(v)) v.forEach((c) => c && typeof c === 'object' && 'type' in c && scan(c as t.Node));
-                else if (v && typeof v === 'object' && 'type' in (v as object)) scan(v as t.Node);
-              }
-            };
-            scan(body);
-            if (bad) {
-              ok = false;
-              break;
-            }
-            props.set(key, { kind: 'fn', fn: { params: v.params as t.Identifier[], body } });
-          } else if (t.isStringLiteral(v) || t.isNumericLiteral(v) || t.isBooleanLiteral(v)) {
-            props.set(key, { kind: 'lit', node: v });
-          } else {
-            ok = false;
-            break;
-          }
+        const { id, init } = path.node;
+
+        if (
+          !t.isIdentifier(id) ||
+          !t.isObjectExpression(init) ||
+          init.properties.length === 0
+        ) {
+          return;
         }
-        if (!ok || props.size === 0) return;
+
+        const binding = path.scope.getBinding(id.name);
+
+        // 声明后不可重赋值
+        if (!binding || binding.constantViolations.length > 0) {
+          return;
+        }
+
+        const props = new Map<string, PropValue>();
+
+        for (const prop of init.properties) {
+          const parsed = parseMappingProp(prop);
+
+          if (parsed === null) {
+            return;
+          }
+
+          const [key, value] = parsed;
+
+          props.set(key, value);
+        }
+
+        if (props.size === 0) {
+          return;
+        }
+
         mappings.set(id.name, props);
         declPaths.set(id.name, path);
       },
     });
 
-    if (mappings.size === 0) return result(false, ['no mapping objects']);
+    if (mappings.size === 0) {
+      return result(false, ["no mapping objects"]);
+    }
 
     // 替换调用点：m['k'](a, b) → 函数体代入
-    const callJobs: Array<{ path: NodePath; name: string; key: string; args: t.Expression[] }> = [];
+    const callJobs: {
+      path: NodePath;
+      args: t.CallExpression["arguments"];
+      fn: MappingFn;
+    }[] = [];
+
     traverse(ast, {
+      // oxlint-disable-next-line sonarjs/function-name -- 键名即 Babel traverse 的 visitor 类型名（大写驼峰），改名后不再是 visitCallExpression 的别名
       CallExpression(path) {
-        const callee = path.node.callee;
-        if (!t.isMemberExpression(callee)) return;
-        if (!t.isIdentifier(callee.object)) return;
-        const props = mappings.get(callee.object.name);
-        if (!props) return;
-        const key = memberKey(callee);
-        if (key === null) return;
-        const prop = props.get(key);
-        if (!prop || prop.kind !== 'fn') return;
-        const args = path.node.arguments;
-        if (args.length !== prop.fn.params.length) return;
-        if (!args.every((a) => t.isExpression(a) && (isSimpleArg(a) || prop.fn.params.every((p, i) => countUses(prop.fn.body, p.name) <= 1)))) {
-          if (!args.every((a) => t.isExpression(a) && isSimpleArg(a))) {
-            // 复杂实参：仅当每个形参恰好用一次才允许代入
-            const everyOnce = prop.fn.params.every((p) => countUses(prop.fn.body, p.name) <= 1);
-            if (!everyOnce) return;
-          }
+        const { callee } = path.node;
+
+        if (!t.isMemberExpression(callee) || !t.isIdentifier(callee.object)) {
+          return;
         }
-        callJobs.push({ path, name: callee.object.name, key, args: args as t.Expression[] });
+
+        const props = mappings.get(callee.object.name);
+
+        if (!props) {
+          return;
+        }
+
+        const key = memberKey(callee);
+
+        if (key === null) {
+          return;
+        }
+
+        const prop = props.get(key);
+
+        if (prop?.kind !== "fn") {
+          return;
+        }
+
+        const args = path.node.arguments;
+
+        if (args.length !== prop.fn.params.length) {
+          return;
+        }
+
+        const simpleArgs = args.every(
+          (a) => t.isExpression(a) && isSimpleArg(a)
+        );
+
+        // 复杂实参：仅当每个形参至多用一次才允许代入
+        const paramsUsedOnce = prop.fn.params.every(
+          (p) => countUses(prop.fn.body, p.name) <= 1
+        );
+
+        if (!simpleArgs && !paramsUsedOnce) {
+          return;
+        }
+
+        callJobs.push({ path, args, fn: prop.fn });
       },
     });
 
     for (const job of callJobs) {
-      const props = mappings.get(job.name)!;
-      const prop = props.get(job.key)!;
-      if (prop.kind !== 'fn') continue;
-      const { params, body } = prop.fn;
+      const { params, body } = job.fn;
       let expr = t.cloneNode(body);
-      for (let i = 0; i < params.length; i++) {
+
+      for (let i = 0; i < params.length; i += 1) {
         expr = substitute(expr, params[i].name, t.cloneNode(job.args[i]));
       }
+
       try {
         job.path.replaceWith(expr);
-        replacedCalls++;
+        replacedCalls += 1;
       } catch {
         /* skip */
       }
@@ -179,34 +337,61 @@ export const inlineObjectMapping: Transform = {
 
     // 替换纯值引用：m['k2'] → 字面量（未被调用的字面量属性）
     traverse(ast, {
+      // oxlint-disable-next-line sonarjs/function-name -- 键名即 Babel traverse 的 visitor 类型名（大写驼峰），改名后不再是 visitMemberExpression 的别名
       MemberExpression(path) {
-        const node = path.node;
-        if (!t.isIdentifier(node.object)) return;
+        const { node } = path;
+
+        if (!t.isIdentifier(node.object)) {
+          return;
+        }
+
         const props = mappings.get(node.object.name);
-        if (!props) return;
+
+        if (!props) {
+          return;
+        }
+
         const key = memberKey(node);
-        if (key === null) return;
+
+        if (key === null) {
+          return;
+        }
+
         const prop = props.get(key);
-        if (!prop || prop.kind !== 'lit') return;
+
+        if (prop?.kind !== "lit") {
+          return;
+        }
+
         // 调用位置（m['k'](...)）跳过
         const parent = path.parentPath?.node;
-        if (t.isCallExpression(parent) && parent.callee === node) return;
+
+        if (t.isCallExpression(parent) && parent.callee === node) {
+          return;
+        }
+
         path.replaceWith(t.cloneNode(prop.node));
-        replacedValues++;
+        replacedValues += 1;
       },
     });
 
     // 声明清理：无引用则删
     for (const [name, dp] of declPaths) {
       let refs = 0;
+
       traverse(ast, {
+        // oxlint-disable-next-line sonarjs/function-name -- 键名即 Babel traverse 的 visitor 类型名（大写驼峰），改名后不再是 visitReferencedIdentifier 的别名
         ReferencedIdentifier(rp) {
-          if (rp.node.name === name) refs++;
+          if (rp.node.name === name) {
+            refs += 1;
+          }
         },
       });
+
+      // oxlint-disable-next-line typescript/strict-boolean-expressions -- NodePath.node 在 remove() 后为 null（类型声明为非空对象，TS2367 禁止与 null 比较），只能用真值判断
       if (refs === 0 && dp.node) {
         dp.remove();
-        removedDecls++;
+        removedDecls += 1;
       }
     }
 
@@ -217,17 +402,3 @@ export const inlineObjectMapping: Transform = {
     ]);
   },
 };
-
-/** 标识符代入（在克隆的表达式上把引用标识符替换为实参） */
-function substitute(expr: t.Expression, name: string, arg: t.Expression): t.Expression {
-  const file = t.file(t.program([t.expressionStatement(t.cloneNode(expr))]));
-  traverse(file, {
-    ReferencedIdentifier(ip) {
-      if (ip.node.name === name) {
-        ip.replaceWith(t.cloneNode(arg));
-      }
-    },
-  });
-  const stmt = file.program.body[0];
-  return (stmt as t.ExpressionStatement).expression;
-}

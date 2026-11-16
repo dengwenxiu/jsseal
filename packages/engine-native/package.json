@@ -1,30 +1,30 @@
 {
   "name": "@jsseal/engine-native",
   "version": "0.6.0",
-  "main": "dist/index.js",
-  "types": "dist/index.d.ts",
-  "scripts": {
-    "build:engine": "node ../../engine/build.sh"
-  },
   "description": "Native QuickJS engine for jsseal (quickjs-ng fork with sealed execution)",
+  "homepage": "https://github.com/dengwenxiu/jsseal#readme",
+  "bugs": "https://github.com/dengwenxiu/jsseal/issues",
   "license": "MIT",
-  "files": [
-    "dist/",
-    "native/"
-  ],
-  "optional": true,
+  "author": "dengwenxiu",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/dengwenxiu/jsseal.git",
     "directory": "packages/engine-native"
   },
-  "bugs": "https://github.com/dengwenxiu/jsseal/issues",
-  "homepage": "https://github.com/dengwenxiu/jsseal#readme",
-  "author": "dengwenxiu",
+  "files": [
+    "dist/",
+    "native/"
+  ],
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
   "publishConfig": {
     "access": "public"
   },
+  "scripts": {
+    "build:engine": "node ../../engine/build.sh"
+  },
   "engines": {
     "node": ">=18"
-  }
+  },
+  "optional": true
 }

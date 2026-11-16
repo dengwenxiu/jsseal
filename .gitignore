@@ -24,6 +24,10 @@ report.json
 .DS_Store
 Thumbs.db
 
+# ---- Agent / 工具链本地状态（不入库，且不参与 lint/format） ----
+.pi/
+.serena/
+
 # ---- 本地环境（不入库） ----
 .env
 .env.local

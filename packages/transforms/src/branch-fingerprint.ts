@@ -13,8 +13,8 @@
  * 因为恒等变换不改语义内容。
  */
 
-import * as t from '@babel/types';
-import { printCode, traverse } from '@jsseal/ast';
+import * as t from "@babel/types";
+import { printCode, traverse } from "@jsseal/ast";
 
 export interface BranchFingerprint {
   /** 测试表达式的规范化文本（去空白/分号） */
@@ -23,41 +23,84 @@ export interface BranchFingerprint {
   line: number;
 }
 
+/** 带 test 的条件分支节点（visitor 组合键命中的 5 种） */
+type BranchNode =
+  | t.IfStatement
+  | t.ConditionalExpression
+  | t.WhileStatement
+  | t.DoWhileStatement
+  | t.ForStatement;
+
+const isBranchNode = (node: t.Node): node is BranchNode => {
+  if (t.isIfStatement(node) || t.isConditionalExpression(node)) {
+    return true;
+  }
+
+  return (
+    t.isWhileStatement(node) ||
+    t.isDoWhileStatement(node) ||
+    t.isForStatement(node)
+  );
+};
+
 /** 提取所有条件分支的指纹 */
-export function extractBranchFingerprints(ast: t.File): BranchFingerprint[] {
+export const extractBranchFingerprints = (ast: t.File): BranchFingerprint[] => {
   const fingerprints: BranchFingerprint[] = [];
+
   traverse(ast, {
-    'IfStatement|ConditionalExpression|WhileStatement|DoWhileStatement|ForStatement'(path) {
-      const test = (path.node as unknown as { test?: t.Expression }).test;
-      if (!test) return;
-      // 常量测试无需强制（fold 已处理）
-      const res = path.get('test').evaluate();
-      if (res.confident && typeof res.value === 'boolean') return;
+    "IfStatement|ConditionalExpression|WhileStatement|DoWhileStatement|ForStatement"(
+      path
+    ) {
+      const { node } = path;
+
+      if (!isBranchNode(node)) {
+        return;
+      }
+
+      const { test } = node;
+
+      if (!test) {
+        return;
+      }
+
+      // 常量测试无需强制（fold 已处理）；evaluate 的 value 是 any，先归一为布尔
+      const res = path.get("test").evaluate();
+      const evaluatesToBoolean = res.value === true || res.value === false;
+
+      if (res.confident && evaluatesToBoolean) {
+        return;
+      }
+
       // 指纹 = 打印文本去空白
-      const text = printCode(test).replace(/\s+/g, '');
+      const text = printCode(test).replaceAll(/\s+/gu, "");
       const line = test.loc?.start.line ?? 0;
+
       fingerprints.push({ hash: text, line });
     },
   });
+
   return fingerprints;
-}
+};
 
 /**
  * 在变换后的代码中查找与原指纹匹配的分支。
  * 匹配策略：精确指纹 → 前缀匹配（截断到 120 字符以容忍微小的表达式包装差异）
  */
-export function matchFingerprint(
+export const matchFingerprint = (
   target: BranchFingerprint,
-  candidates: BranchFingerprint[],
-): number {
+  candidates: BranchFingerprint[]
+): number => {
   const targetHash = target.hash.slice(0, 120);
   // 1. 精确匹配
   const exact = candidates.findIndex((c) => c.hash === target.hash);
-  if (exact >= 0) return exact;
+
+  if (exact !== -1) {
+    return exact;
+  }
+
   // 2. 前缀匹配（前 120 字符）
-  const prefix = candidates.findIndex((c) => c.hash.slice(0, 120) === targetHash);
-  return prefix;
-}
+  return candidates.findIndex((c) => c.hash.slice(0, 120) === targetHash);
+};
 
 /**
  * 构建指纹→执行序号的映射（用于强制锚点的身份迁移）：
@@ -72,20 +115,25 @@ export interface ForcedAnchorMigration {
   mapping: Map<number, number>;
 }
 
-export function buildMigration(
+export const buildMigration = (
   originalAst: t.File,
-  transformedAst: t.File,
-): ForcedAnchorMigration {
+  transformedAst: t.File
+): ForcedAnchorMigration => {
   const originalFingerprints = extractBranchFingerprints(originalAst);
   const transformedFingerprints = extractBranchFingerprints(transformedAst);
   const mapping = new Map<number, number>();
 
-  for (let origIdx = 0; origIdx < originalFingerprints.length; origIdx++) {
-    const transformedIdx = matchFingerprint(originalFingerprints[origIdx], transformedFingerprints);
+  for (let origIdx = 0; origIdx < originalFingerprints.length; origIdx += 1) {
+    const transformedIdx = matchFingerprint(
+      originalFingerprints[origIdx],
+      transformedFingerprints
+    );
+
     if (transformedIdx >= 0) {
-      mapping.set(origIdx + 1, transformedIdx + 1); // 1-based 序号
+      // 1-based 序号
+      mapping.set(origIdx + 1, transformedIdx + 1);
     }
   }
 
   return { originalFingerprints, transformedFingerprints, mapping };
-}
+};

@@ -17,8 +17,7 @@
   通道不进锚库输出向量
 - 访问图谱 envTrace：envProbe 扩展记录全部属性访问（SDK 探测面完整地图，
   与 envMisses/envAudit 构成三层感知）；probe/CLI 展示
-- 内部状态反探测：__jsseal/__jsseal_ret_raw 非枚举化（keys/for-in/
-  stringify 三向量隐藏）+ 认知库回归哨兵；随机名/闭包化为分级路线
+- 内部状态反探测：__jsseal/__jsseal_ret_raw 非枚举化（keys/for-in/ stringify 三向量隐藏）+ 认知库回归哨兵；随机名/闭包化为分级路线
 - AST 路径锚定 v2（强制分支序号→结构锚）：形状签名（字面量/标识符占位，
   对 0x↔十进制/重命名/格式化稳定）+ 函数提示 + 出现次序三层匹配；br trace
   打通执行序↔AST 节点；迁移成功的强制锚点升级为全输出比对（原 ok-only）
@@ -28,8 +27,7 @@
   CLI `env-audit` 子命令 + probe 集成。prelude 环境层升级原型+getter+内部槽
   拟真形态（`[object Navigator]`），自审 30/43 → 42/43
 - 新变换 `llm-rewrite`（LLM 驱动改写提案，POSITIONING §4.4 落地）：LLM
-  直接提案函数改写，governor 锚库裁决（实测恶意提案被回滚）；provider
-  mock/openai/anthropic/ollama/custom（任意 LLM 服务注入点）
+  直接提案函数改写，governor 锚库裁决（实测恶意提案被回滚）；provider mock/openai/anthropic/ollama/custom（任意 LLM 服务注入点）
 - 新变换 `fold-pure-calls`（通用纯调用折叠，purify 的收益兑现）：top-pure
   函数（自由变量全为模块级单赋值绑定）在全字面量调用点封闭求值→常量回填，
   **家族无关**（decoder-lookup-table 的泛化）；静态纯门卫（写目标局部性/
@@ -62,8 +60,7 @@
 
 ### 工具链
 
-- CLI：`jsseal <input>` / `jsseal probe`（侦察模式：家族/console/evalLog/
-  netLog/envMisses/字符串池预览）+ JSON 报告
+- CLI：`jsseal <input>` / `jsseal probe`（侦察模式：家族/console/evalLog/ netLog/envMisses/字符串池预览）+ JSON 报告
 - 浏览器演练场（wasm 单文件 bundle，完整管线在浏览器内运行）
 - LLM 重命名插件（mock/openai/anthropic/ollama，"LLM only suggests names"）
 - 编程 API：`@jsseal/core` 的 `deobfuscate()` / `probe()`

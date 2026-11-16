@@ -16,7 +16,7 @@ jsseal obfuscated.js -o output.js --report report.json
 ### 选项
 
 | 选项 | 默认 | 说明 |
-|---|---|---|
+| --- | --- | --- |
 | `-o, --out <file>` | `<input>.deobf.js` | 输出文件（**强烈建议指定**，默认会写到样本同目录） |
 | `--entry <name>` | — | 入口函数名（模式②：钉死入口参数） |
 | `--args <json>` | `[]` | 入口参数（JSON 数组） |
@@ -32,10 +32,10 @@ jsseal obfuscated.js -o output.js --report report.json
 
 ### 退出码
 
-| 码 | 含义 |
-|---|---|
-| `0` | 正常（含 PASS） |
-| `2` | 用法错误 |
+| 码  | 含义                      |
+| --- | ------------------------- |
+| `0` | 正常（含 PASS）           |
+| `2` | 用法错误                  |
 | `3` | 终验失败（report 仍写出） |
 
 ### 何时用 `--entry`
@@ -43,6 +43,7 @@ jsseal obfuscated.js -o output.js --report report.json
 样本是"库形态"（顶层只定义函数、无自执行入口）或加密函数需要钉死参数时。
 
 判据：probe 的 console 流为空 + ret 为 undefined → 大概率需要
+
 ```bash
 jsseal probe sample.js
 # 如果 console 为空：
@@ -80,7 +81,7 @@ storage 写入:  {"token":"abc123"}                   ← localStorage
 ### 字符串池预览
 
 | 状态 | 含义 | 行动 |
-|---|---|---|
+| --- | --- | --- |
 | `解码明文` | decoder 可单参求值，全部解码字符串可见 | 直接反混淆 |
 | `编码态（未解码）` | 双参 RC4 等无法单参扫描 | 反混淆管线仍可处理（inline-decoder），但 probe 只能显示密文 |
 
@@ -116,20 +117,21 @@ jsseal sample.js --report r.json
 
 ### 关键字段
 
-| 字段 | 含义 |
-|---|---|
-| `finalValidation.pass` | 全部锚点行为恒等 |
-| `applied` | 已提交的变换（`@rN` = 第 N 轮） |
-| `rolledBack` | 被锚库拦截的提案（**不是错误**——宪法正常工作） |
-| `missingEnv` | 代码引用的未定义全局（静态分析） |
-| `envMisses` | 运行时摸到的缺失 API（动态探针） |
-| `netMisses` | 配置了 fixture 但未命中的 URL |
+| 字段                   | 含义                                           |
+| ---------------------- | ---------------------------------------------- |
+| `finalValidation.pass` | 全部锚点行为恒等                               |
+| `applied`              | 已提交的变换（`@rN` = 第 N 轮）                |
+| `rolledBack`           | 被锚库拦截的提案（**不是错误**——宪法正常工作） |
+| `missingEnv`           | 代码引用的未定义全局（静态分析）               |
+| `envMisses`            | 运行时摸到的缺失 API（动态探针）               |
+| `netMisses`            | 配置了 fixture 但未命中的 URL                  |
 
 ### 还原度评估
 
 > ⚠️ **`PASS` 只保证行为恒等，不保证还原成功**。
 
 看三要素：
+
 1. **WARNING 行**（CLI 内置启发式）
 2. **输入/输出大小比**
 3. **hex 名残留**（`grep -c '_0x'`）
@@ -137,7 +139,7 @@ jsseal sample.js --report r.json
 ## 编程 API
 
 ```typescript
-import { deobfuscate, probe } from '@jsseal/core';
+import { deobfuscate, probe } from "@jsseal/core";
 
 const report = await deobfuscate({ code, samples: 3 });
 // report.finalCode / report.finalValidation.pass / report.applied
@@ -181,14 +183,14 @@ jsseal sample.js --samples 5 --forced-branches 4 -o out.js
 
 ## 支持矩阵
 
-| 家族 | 状态 |
-|---|---|
-| obfuscator.io 全配置 | ✅ |
-| sojson v5–v7 / jsjiami | ✅ |
-| jsconfuser（含状态机 CFF） | ✅ |
-| packer（Dean Edwards） | ✅ |
-| 嵌套 eval 链 | ✅ |
-| ctor 链（JSFuck 核心） | ✅ |
-| 动态 CFF（运行时执行序） | ✅ |
-| JSFuck 全编码（基本字符集） | ✅ |
-| JSVMP 虚拟化 | ❌ |
+| 家族                        | 状态 |
+| --------------------------- | ---- |
+| obfuscator.io 全配置        | ✅   |
+| sojson v5–v7 / jsjiami      | ✅   |
+| jsconfuser（含状态机 CFF）  | ✅   |
+| packer（Dean Edwards）      | ✅   |
+| 嵌套 eval 链                | ✅   |
+| ctor 链（JSFuck 核心）      | ✅   |
+| 动态 CFF（运行时执行序）    | ✅   |
+| JSFuck 全编码（基本字符集） | ✅   |
+| JSVMP 虚拟化                | ❌   |

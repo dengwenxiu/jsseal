@@ -5,23 +5,34 @@
  * 运行：npm run gen:fixtures
  */
 
-import { readFileSync, writeFileSync, mkdirSync } from 'node:fs';
-import { resolve, dirname } from 'node:path';
-import { fileURLToPath } from 'node:url';
-import JavaScriptObfuscator from 'javascript-obfuscator';
+// 本脚本是 .mjs 直跑工具，未纳入任何 tsconfig 项目：node:fs / node:path /
+// javascript-obfuscator 在类型感知检查下解析为 error 类型，typescript/no-unsafe-*
+// 的报告无法靠改代码消除（需要把脚本纳入 tsconfig 项目，属仓库配置范畴）。
+/* oxlint-disable typescript/no-unsafe-argument, typescript/no-unsafe-assignment, typescript/no-unsafe-call, typescript/no-unsafe-member-access, typescript/no-unsafe-return -- 见上：.mjs 脚本不在 tsconfig 项目内，node 内置模块与第三方包为 error 类型 */
 
-const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
-const src = readFileSync(resolve(root, 'tools/fixtures-src/sample.js'), 'utf8');
-const outDir = resolve(root, 'packages/transforms/fixtures');
+import { readFileSync, writeFileSync, mkdirSync } from "node:fs";
+import path from "node:path";
+
+import JavaScriptObfuscator from "javascript-obfuscator";
+
+const root = path.resolve(import.meta.dirname, "..");
+
+const src = readFileSync(
+  path.resolve(root, "tools/fixtures-src/sample.js"),
+  "utf-8"
+);
+
+const outDir = path.resolve(root, "packages/transforms/fixtures");
+
 mkdirSync(outDir, { recursive: true });
 
 const configs = [
   {
-    name: 'ob-stringarray-base64',
+    name: "ob-stringarray-base64",
     options: {
       compact: true,
       stringArray: true,
-      stringArrayEncoding: ['base64'],
+      stringArrayEncoding: ["base64"],
       stringArrayRotate: true,
       stringArrayShuffle: true,
       stringArrayThreshold: 1,
@@ -30,11 +41,11 @@ const configs = [
     },
   },
   {
-    name: 'ob-stringarray-rc4',
+    name: "ob-stringarray-rc4",
     options: {
       compact: true,
       stringArray: true,
-      stringArrayEncoding: ['rc4'],
+      stringArrayEncoding: ["rc4"],
       stringArrayRotate: true,
       stringArrayShuffle: true,
       stringArrayThreshold: 1,
@@ -43,16 +54,16 @@ const configs = [
     },
   },
   {
-    name: 'ob-full',
+    name: "ob-full",
     options: {
       compact: true,
       stringArray: true,
-      stringArrayEncoding: ['base64'],
+      stringArrayEncoding: ["base64"],
       stringArrayRotate: true,
       stringArrayShuffle: true,
       stringArrayThreshold: 1,
       stringArrayWrappersCount: 2,
-      stringArrayWrappersType: 'function',
+      stringArrayWrappersType: "function",
       deadCodeInjection: true,
       deadCodeInjectionThreshold: 0.4,
       controlFlowFlattening: true,
@@ -65,7 +76,7 @@ const configs = [
     },
   },
   {
-    name: 'ob-cff-only',
+    name: "ob-cff-only",
     options: {
       compact: true,
       stringArray: false,
@@ -75,7 +86,7 @@ const configs = [
     },
   },
   {
-    name: 'ob-deadcode-only',
+    name: "ob-deadcode-only",
     options: {
       compact: true,
       stringArray: false,
@@ -89,30 +100,45 @@ const configs = [
 for (const cfg of configs) {
   const result = JavaScriptObfuscator.obfuscate(src, {
     ...cfg.options,
-    identifierNamesGenerator: 'hexadecimal',
+    identifierNamesGenerator: "hexadecimal",
     disableConsoleOutput: false,
     selfDefending: cfg.options.selfDefending ?? false,
     debugProtection: false,
     domainLock: [],
   });
+
   const out = result.getObfuscatedCode();
-  writeFileSync(resolve(outDir, cfg.name + '.js'), out);
+
+  writeFileSync(path.resolve(outDir, `${cfg.name}.js`), out);
   console.log(`generated ${cfg.name}.js (${out.length} bytes)`);
 }
 
 // ---------- packer fixture（Dean Edwards packer 算法，base36） ----------
-function packPacker(code) {
-  const words = [...new Set(code.match(/[a-zA-Z_$][\w$]*/g) || [])];
+
+/** packer 头部单引号串转义（先转义反斜杠再转义单引号） */
+const escapePackerString = (s) =>
+  s.replaceAll("\\", "\\\\").replaceAll("'", "\\'");
+
+const packPacker = (code) => {
+  const matches = code.match(/[a-zA-Z_$][\w$]*/gu) ?? [];
+
+  const words = [...new Set(matches)];
   const a = 36;
   const e = (n) => n.toString(a);
-  const p = code.replace(/[a-zA-Z_$][\w$]*/g, (w) => e(words.indexOf(w)));
-  const k = words.slice();
-  const esc = (s) => s.replace(/\\/g, '\\\\').replace(/'/g, "\\'");
-  return `eval(function(p,a,c,k,e,d){e=function(c){return c.toString(36)};if(!''.replace(/^/,String)){while(c--){d[e(c)]=k[c]||e(c)}k=[function(e){return d[e]}];e=function(){return'\\\\w+'};c=1};while(c--){if(k[c]){p=p.replace(new RegExp('\\\\b'+e(c)+'\\\\b','g'),k[c])}}return p}('${esc(p)}',${a},${k.length},'${esc(k.join('|'))}'.split('|'),0,{}))`;
-}
+
+  const p = code.replaceAll(/[a-zA-Z_$][\w$]*/gu, (w) => e(words.indexOf(w)));
+
+  const k = [...words];
+
+  return `eval(function(p,a,c,k,e,d){e=function(c){return c.toString(36)};if(!''.replace(/^/,String)){while(c--){d[e(c)]=k[c]||e(c)}k=[function(e){return d[e]}];e=function(){return'\\\\w+'};c=1};while(c--){if(k[c]){p=p.replace(new RegExp('\\\\b'+e(c)+'\\\\b','g'),k[c])}}return p}('${escapePackerString(p)}',${a},${k.length},'${escapePackerString(k.join("|"))}'.split('|'),0,{}))`;
+};
+
 {
-  const payload = 'var secret="PACKER_SECRET_42";console.log("pv="+secret);console.log("token:"+Math.random().toString(36).slice(2,6));';
+  const payload =
+    'var secret="PACKER_SECRET_42";console.log("pv="+secret);console.log("token:"+Math.random().toString(36).slice(2,6));';
+
   const packed = packPacker(payload);
-  writeFileSync(resolve(outDir, 'packer-basic.js'), packed);
+
+  writeFileSync(path.resolve(outDir, "packer-basic.js"), packed);
   console.log(`generated packer-basic.js (${packed.length} bytes)`);
 }

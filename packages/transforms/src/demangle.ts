@@ -3,38 +3,59 @@
  * 返回 renamePairs，governor 同步 FunctionRegistry pins 的键名。
  */
 
-import * as t from '@babel/types';
-import { traverse } from '@jsseal/ast';
-import { result, type Transform } from './types';
+import type { Scope } from "@babel/traverse";
+import type * as t from "@babel/types";
+import { traverse } from "@jsseal/ast";
 
-const HEX_NAME = /^_?0x[0-9a-fA-F]{3,}$/;
+import { result } from "./types";
+import type { Transform } from "./types";
+
+const HEX_NAME = /^_?0x[0-9a-fA-F]{3,}$/u;
 
 export const demangleNames: Transform = {
-  name: 'demangle-names',
-  risk: 'unsafe', // eval 字符串引用名时会被锚库拦截
+  name: "demangle-names",
+  // eval 字符串引用名时会被锚库拦截
+  risk: "unsafe",
+  // oxlint-disable-next-line eslint/require-await -- Transform 契约要求 run 返回 Promise；实现全同步，去掉 async 需 Promise.resolve 包装，反而触发 typescript/promise-function-async（两规则互斥）
   async run(ast) {
-    const renamePairs: Array<{ from: string; to: string }> = [];
+    const renamePairs: { from: string; to: string }[] = [];
     let counter = 0;
 
     // 快照所有 (scope, name)，避免遍历中修改作用域
-    const jobs: Array<{ scope: import('@babel/traverse').Scope; name: string }> = [];
+    const jobs: { scope: Scope; name: string }[] = [];
     const seenScopes = new Set<unknown>();
+
     traverse(ast, {
+      // oxlint-disable-next-line sonarjs/function-name -- visitor 键必须是 babel 节点类型名，改为小写驼峰即不再被派发，变换失效
       Scopable(path) {
-        const scope = path.scope;
-        if (seenScopes.has(scope)) return;
+        const { scope } = path;
+
+        if (seenScopes.has(scope)) {
+          return;
+        }
+
         seenScopes.add(scope);
+
         for (const name of Object.keys(scope.bindings)) {
-          if (HEX_NAME.test(name)) jobs.push({ scope, name });
+          if (HEX_NAME.test(name)) {
+            jobs.push({ scope, name });
+          }
         }
       },
     });
 
     for (const { scope, name } of jobs) {
       const binding = scope.getBinding(name);
-      if (!binding || !binding.path.node) continue;
-      counter++;
+      // 运行时（remove 之后）node 可为 null，类型上是 t.Node——按可空处理再判空
+      const bindingNode: t.Node | null = binding?.path.node ?? null;
+
+      if (!binding || !bindingNode) {
+        continue;
+      }
+
+      counter += 1;
       const newName = `v_${counter}`;
+
       try {
         scope.rename(name, newName);
         renamePairs.push({ from: name, to: newName });
@@ -42,6 +63,11 @@ export const demangleNames: Transform = {
         /* 放弃该名字 */
       }
     }
-    return result(renamePairs.length > 0, [`renamed=${renamePairs.length}`], renamePairs);
+
+    return result(
+      renamePairs.length > 0,
+      [`renamed=${renamePairs.length}`],
+      renamePairs
+    );
   },
 };

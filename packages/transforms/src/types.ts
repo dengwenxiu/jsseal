@@ -1,19 +1,19 @@
 /**
- * @jsseal/transforms — 恒等变换接口
+ * \@jsseal/transforms — 恒等变换接口
  *
  * 宪法：一切变换都是确定性恒等变换；governor 在锚库上逐条验证后才能提交。
  */
 
-import type { Detection } from '@jsseal/detector';
-import type { BackendKind } from '@jsseal/runtime';
-import type * as t from '@babel/types';
-import type { Corpus } from '@jsseal/anchors';
+import type * as t from "@babel/types";
+import type { Corpus } from "@jsseal/anchors";
+import type { Detection } from "@jsseal/detector";
+import type { BackendKind } from "@jsseal/runtime";
 
 export interface TransformResult {
   changed: boolean;
   notes: string[];
   /** 重命名对（demangle），governor 用于同步 FunctionRegistry pins 的键名 */
-  renamePairs?: Array<{ from: string; to: string }>;
+  renamePairs?: { from: string; to: string }[];
 }
 
 export interface TransformContext {
@@ -29,10 +29,12 @@ export interface TransformContext {
 
 export interface Transform {
   name: string;
-  risk: 'safe' | 'unsafe';
-  run(ast: t.File, ctx: TransformContext): Promise<TransformResult>;
+  risk: "safe" | "unsafe";
+  run: (ast: t.File, ctx: TransformContext) => Promise<TransformResult>;
 }
 
-export function result(changed: boolean, notes: string[] = [], renamePairs?: Array<{ from: string; to: string }>): TransformResult {
-  return { changed, notes, renamePairs };
-}
+export const result = (
+  changed: boolean,
+  notes: string[] = [],
+  renamePairs?: { from: string; to: string }[]
+): TransformResult => ({ changed, notes, renamePairs });

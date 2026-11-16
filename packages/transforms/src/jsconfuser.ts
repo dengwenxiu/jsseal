@@ -16,10 +16,14 @@
  *      case 匹配唯一 → 按 while 循环模拟重排（依赖 fold-constants 先清不透明谓词）
  */
 
-import * as t from '@babel/types';
-import { traverse, parseCode } from '@jsseal/ast';
-import { runSealed } from '@jsseal/runtime';
-import { result, type Transform } from './types';
+import type { NodePath } from "@babel/traverse";
+import * as t from "@babel/types";
+import { traverse, parseCode } from "@jsseal/ast";
+import { runSealed } from "@jsseal/runtime";
+import type { SealedOutput } from "@jsseal/runtime";
+
+import { result } from "./types";
+import type { Transform } from "./types";
 
 interface JsConfuserPlan {
   hashFn: string;
@@ -31,40 +35,247 @@ interface JsConfuserPlan {
   prologueSource: string;
 }
 
+/** 劫持驱动记录的 xor 调用事实（key 不参与静态匹配，故不保留） */
+interface XorCapture {
+  start: number;
+  length: number;
+  v: string;
+}
+
+/** 节点源码范围；babel 的 start/end 在缺省位置时为 null/undefined */
+interface NodeSpan {
+  start: number;
+  end: number;
+}
+
+/** 可按 (start,length) 回填的 xor 调用点 */
+interface XorSite {
+  path: NodePath<t.CallExpression>;
+  v: string;
+}
+
+/** 分组结果：一致键的回填表 + 歧义组数量 */
+interface XorValueSelection {
+  usable: Map<string, string>;
+  ambiguous: number;
+}
+
+const spanOf = (node: t.Node): NodeSpan | null => {
+  const { start, end } = node;
+
+  if (start === null || start === undefined) {
+    return null;
+  }
+
+  if (end === null || end === undefined) {
+    return null;
+  }
+
+  return { start, end };
+};
+
+/** 字面量数字（含一元负号） → number；非字面量 → null */
+const literalNumberOf = (node: t.Node | null | undefined): number | null => {
+  if (t.isNumericLiteral(node)) {
+    return node.value;
+  }
+
+  if (
+    t.isUnaryExpression(node, { operator: "-" }) &&
+    t.isNumericLiteral(node.argument)
+  ) {
+    return -node.argument.value;
+  }
+
+  return null;
+};
+
+/** 劫持记录条目校验：驱动侧写入的是 JSON，编译期无类型 */
+const isXorCapture = (value: unknown): value is XorCapture => {
+  if (typeof value !== "object" || value === null) {
+    return false;
+  }
+
+  if (!("start" in value) || typeof value.start !== "number") {
+    return false;
+  }
+
+  if (!("length" in value) || typeof value.length !== "number") {
+    return false;
+  }
+
+  return "v" in value && typeof value.v === "string";
+};
+
+/** 解析 __calls dump：非法条目丢弃（返回空数组表示无可采信事实） */
+const parseCaptures = (ret: string | undefined): XorCapture[] => {
+  const decoded: unknown = JSON.parse(ret ?? "[]");
+  const list: unknown[] = Array.isArray(decoded) ? decoded : [];
+
+  return list.filter(isXorCapture);
+};
+
+const isFaulted = (out: SealedOutput): boolean =>
+  out.flags.tapeExhausted === true ||
+  out.flags.timeout === true ||
+  out.flags.oom === true;
+
+/** 按 (start, length) 字面量对分组；组内是同一调用点观测到的全部返回值 */
+const groupXorCaptures = (captured: XorCapture[]): Map<string, Set<string>> => {
+  const groups = new Map<string, Set<string>>();
+
+  for (const entry of captured) {
+    const groupKey = `${entry.start}|${entry.length}`;
+    const observed = groups.get(groupKey) ?? new Set<string>();
+
+    observed.add(entry.v);
+    groups.set(groupKey, observed);
+  }
+
+  return groups;
+};
+
+/** 一致键才可回填：组内出现多个候选值 → 歧义组整组放弃 */
+const pickConsistentValues = (
+  groups: Map<string, Set<string>>
+): XorValueSelection => {
+  const usable = new Map<string, string>();
+  let ambiguous = 0;
+
+  for (const [groupKey, observed] of groups) {
+    if (observed.size === 1) {
+      const [only] = observed;
+
+      usable.set(groupKey, only);
+    } else {
+      ambiguous += 1;
+    }
+  }
+
+  return { usable, ambiguous };
+};
+
+/**
+ * 调用形态：xor(key 表达式, start, length)。key 非字面量不可静态匹配，
+ * 按 (start, length) 字面量对查表回填。**禁止**按出现顺序对应：执行序 ≠
+ * AST 遍历序（js-confuser 2.1.3 的 xor 调用是 scope 计算键，顺序错位曾把
+ * 回填变错填，被锚库击落）。
+ */
+const collectXorSites = (
+  ast: t.File,
+  xorFnName: string,
+  usable: Map<string, string>
+): XorSite[] => {
+  const sites: XorSite[] = [];
+
+  const visitXorCall = (path: NodePath<t.CallExpression>): void => {
+    const { callee, arguments: args } = path.node;
+
+    if (!t.isIdentifier(callee) || callee.name !== xorFnName) {
+      return;
+    }
+
+    if (args.length !== 3) {
+      return;
+    }
+
+    const start = literalNumberOf(args[1]);
+    const length = literalNumberOf(args[2]);
+
+    if (start === null || length === null) {
+      return;
+    }
+
+    const v = usable.get(`${start}|${length}`);
+
+    if (v === undefined) {
+      return;
+    }
+
+    sites.push({ path, v });
+  };
+
+  traverse(ast, { CallExpression: visitXorCall });
+
+  return sites;
+};
+
 /** 检测 JsConfuser 状态机特征并提取执行前置（含解密函数与数据） */
-export function detectJsConfuser(code: string): JsConfuserPlan | null {
+export const detectJsConfuser = (code: string): JsConfuserPlan | null => {
+  /* 签名正则的命中结果决定后续切片范围——改写字面量本体（`u` 标志会改变转义
+   * 与字符类语义、命名分组会改变组号含义）即改变判定，属行为恒等红线内禁改项 */
+  /* oxlint-disable eslint/require-unicode-regexp, eslint/prefer-named-capture-group -- 见上：正则本体是签名判定的组成部分 */
   const hashFn = /function\s+(__p_\w+_cff_hash)\s*\(/.exec(code)?.[1];
   const xorFn = /function\s+(__p_\w+_cff_xor)\s*\(/.exec(code)?.[1];
   const sumFn = /function\s+(__p_\w+_cff_sum)\s*\(/.exec(code)?.[1];
   const sliceFn = /function\s+(__p_\w+_cff_slice)\s*\(/.exec(code)?.[1];
-  if (!hashFn || !xorFn || !sumFn || !sliceFn) return null;
+
+  if (
+    hashFn === undefined ||
+    xorFn === undefined ||
+    sumFn === undefined ||
+    sliceFn === undefined
+  ) {
+    return null;
+  }
+
   const seqMatch = /var\s+(__p_\w+_cff_sequence)\s*=/.exec(code);
   const strMatch = /(__p_\w+_strings)\s*=/.exec(code);
-  if (!seqMatch || !strMatch) return null;
+
+  /* oxlint-enable eslint/require-unicode-regexp, eslint/prefer-named-capture-group */
+
+  if (seqMatch === null || strMatch === null) {
+    return null;
+  }
+
   // prologue = 四个函数 + 两个数据变量的完整声明（按源码切片）
   const slices: string[] = [];
   const ast = parseCode(code);
-  const names = new Set([hashFn, xorFn, sumFn, sliceFn, seqMatch[1], strMatch[1]]);
+
+  const names = new Set([
+    hashFn,
+    xorFn,
+    sumFn,
+    sliceFn,
+    seqMatch[1],
+    strMatch[1],
+  ]);
+
   traverse(ast, {
-    'FunctionDeclaration|VariableDeclaration'(path) {
-      const n = path.node as t.Node;
-      if (t.isFunctionDeclaration(n) && n.id && names.has(n.id.name) && n.start != null && n.end != null) {
-        slices.push(code.slice(n.start, n.end));
+    "FunctionDeclaration|VariableDeclaration": (path) => {
+      const { node } = path;
+      const span = spanOf(node);
+
+      if (span === null) {
         return;
       }
-      if (t.isVariableDeclaration(n)) {
-        for (const d of n.declarations) {
-          if (t.isIdentifier(d.id) && names.has(d.id.name) && n.start != null && n.end != null) {
-            slices.push(code.slice(n.start, n.end));
+
+      if (t.isFunctionDeclaration(node)) {
+        if (node.id && names.has(node.id.name)) {
+          slices.push(code.slice(span.start, span.end));
+        }
+
+        return;
+      }
+
+      if (t.isVariableDeclaration(node)) {
+        for (const decl of node.declarations) {
+          if (t.isIdentifier(decl.id) && names.has(decl.id.name)) {
+            slices.push(code.slice(span.start, span.end));
+
             return;
           }
         }
       }
     },
   });
+
   /* strings 变量与 sequence 同一 VariableDeclaration（var a=..., b=...）→ 单次切片覆盖两个；
    * 故有效阈值是 5 */
-  if (slices.length < 5) return null;
+  if (slices.length < 5) {
+    return null;
+  }
+
   return {
     hashFn,
     xorFn,
@@ -72,16 +283,27 @@ export function detectJsConfuser(code: string): JsConfuserPlan | null {
     sliceFn,
     sequenceVar: seqMatch[1],
     stringsVar: strMatch[1],
-    prologueSource: slices.join('\n'),
+    prologueSource: slices.join("\n"),
   };
-}
+};
 
 export const jsconfuserUnfold: Transform = {
-  name: 'jsconfuser-unfold',
-  risk: 'unsafe',
+  name: "jsconfuser-unfold",
+  risk: "unsafe",
   async run(ast, ctx) {
     const plan = detectJsConfuser(ctx.code);
-    if (!plan) return result(false, ['not jsconfuser']);
+
+    if (plan === null) {
+      return result(false, ["not jsconfuser"]);
+    }
+
+    const samples = ctx.corpus?.samples ?? [];
+
+    if (samples.length === 0) {
+      return result(false, ["no corpus"]);
+    }
+
+    const [sample] = samples;
 
     // ---------- 1) 在封闭运行时求值 states 终态与全部 xor 解密 ----------
     // 业务函数把 sequence 切片+魔数混入 states 数组传给 sum；
@@ -96,97 +318,84 @@ globalThis[${JSON.stringify(plan.xorFn)}] = function (key, start, length) {
   return v;
 };
 `;
+
     // 求值环境：prologue + 劫持 + 完整业务代码（一次执行捕获全部 xor 调用）
-    if (!ctx.corpus || ctx.corpus.samples.length === 0) return result(false, ['no corpus']);
-    const sample = ctx.corpus.samples[0];
+    const program = `${plan.prologueSource}\n${evalDriver}\n${ctx.code}\n`;
+    const { tapes } = sample;
     let out;
+
     try {
       out = await runSealed({
-        code: plan.prologueSource + '\n' + evalDriver + '\n' + ctx.code + '\n',
-        mode: 'replay',
-        tapes: sample.tapes,
+        tapes,
+        code: program,
+        mode: "replay",
         backend: ctx.backend,
         timeoutMs: ctx.timeoutMs,
         memoryLimitBytes: ctx.memoryLimitBytes,
       });
-    } catch (e) {
-      return result(false, [`probe fault: ${(e as Error).message}`]);
+    } catch (error) {
+      return result(false, [
+        `probe fault: ${error instanceof Error ? error.message : String(error)}`,
+      ]);
     }
-    if (out.flags.tapeExhausted || out.flags.timeout || out.flags.oom) {
+
+    if (isFaulted(out)) {
       return result(false, [`probe fault: ${JSON.stringify(out.flags)}`]);
     }
+
     // 从 dump 拿捕获的 xor 调用（劫持函数存到 __jsseal）
     const captureDriver = `globalThis.__jsseal_ret_raw = JSON.stringify(__calls);`;
-    let captured: Array<{ key: number; start: number; length: number; v: string }>;
+    let captured: XorCapture[];
+
     try {
-      const out2 = await runSealed({
-        code: plan.prologueSource + '\n' + evalDriver + '\n' + ctx.code + '\n' + captureDriver,
-        mode: 'replay',
-        tapes: sample.tapes,
+      const captureOut = await runSealed({
+        tapes,
+        code: `${program}${captureDriver}`,
+        mode: "replay",
         backend: ctx.backend,
         timeoutMs: ctx.timeoutMs,
         memoryLimitBytes: ctx.memoryLimitBytes,
       });
-      captured = JSON.parse(out2.ret ?? '[]');
+
+      captured = parseCaptures(captureOut.ret);
     } catch {
-      return result(false, ['capture fault']);
+      return result(false, ["capture fault"]);
     }
-    if (!Array.isArray(captured) || captured.length === 0) {
-      return result(false, ['no xor calls captured']);
+
+    if (captured.length === 0) {
+      return result(false, ["no xor calls captured"]);
     }
 
     // ---------- 2) xor 调用点静态匹配回填 ----------
-    // 调用形态：xor(<key 表达式>, start, length)。key 非字面量不可静态匹配，
-    // 按 (start, length) 字面量对分组：组内全部 v 一致才回填（同组不同 key 可
-    // 合法产出不同 v——歧义组整组放弃）。**禁止**按出现顺序对应：
-    // 执行序 ≠ AST 遍历序（js-confuser 2.1.3 的 xor 调用是 scope 计算键，
-    // 顺序错位曾把回填变错填，被锚库击落）。
-    const groups = new Map<string, Set<string>>();
-    for (const entry of captured) {
-      if (typeof entry?.start !== 'number' || typeof entry?.length !== 'number' || typeof entry.v !== 'string') continue;
-      const gk = `${entry.start}|${entry.length}`;
-      const g = groups.get(gk) ?? new Set<string>();
-      g.add(entry.v);
-      groups.set(gk, g);
-    }
-    const usable = new Map<string, string>();
-    let ambiguous = 0;
-    for (const [gk, vs] of groups) {
-      if (vs.size === 1) usable.set(gk, [...vs][0]);
-      else ambiguous++;
-    }
-
+    const groups = groupXorCaptures(captured);
+    const { usable, ambiguous } = pickConsistentValues(groups);
+    const jobs = collectXorSites(ast, plan.xorFn, usable);
     let replacedXor = 0;
-    const jobs: Array<{ path: import('@babel/traverse').NodePath<t.CallExpression>; v: string }> = [];
-    traverse(ast, {
-      CallExpression(path) {
-        const callee = path.node.callee;
-        if (!t.isIdentifier(callee) || callee.name !== plan.xorFn) return;
-        if (path.node.arguments.length !== 3) return;
-        const a1 = path.node.arguments[1] as t.Expression;
-        const a2 = path.node.arguments[2] as t.Expression;
-        const start = t.isNumericLiteral(a1) ? a1.value : t.isUnaryExpression(a1, { operator: '-' }) && t.isNumericLiteral(a1.argument) ? -a1.argument.value : null;
-        const len = t.isNumericLiteral(a2) ? a2.value : t.isUnaryExpression(a2, { operator: '-' }) && t.isNumericLiteral(a2.argument) ? -a2.argument.value : null;
-        if (start === null || len === null) return;
-        const v = usable.get(`${start}|${len}`);
-        if (v === undefined) return;
-        jobs.push({ path, v });
-      },
-    });
+
     for (const { path, v } of jobs) {
       try {
         path.replaceWith(t.stringLiteral(v));
-        replacedXor++;
+        replacedXor += 1;
       } catch {
         /* skip */
       }
     }
+
     if (replacedXor === 0) {
-      return result(false, [`xor sites not matched (groups=${groups.size} ambiguous=${ambiguous})`]);
+      return result(false, [
+        `xor sites not matched (groups=${groups.size} ambiguous=${ambiguous})`,
+      ]);
     }
 
-    const notes = [`xor-inlined=${replacedXor}/${captured.length}`, `groups=${groups.size}`];
-    if (ambiguous > 0) notes.push(`ambiguous=${ambiguous}`);
+    const notes = [
+      `xor-inlined=${replacedXor}/${captured.length}`,
+      `groups=${groups.size}`,
+    ];
+
+    if (ambiguous > 0) {
+      notes.push(`ambiguous=${ambiguous}`);
+    }
+
     return result(true, notes);
   },
 };

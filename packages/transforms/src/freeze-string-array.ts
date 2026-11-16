@@ -10,110 +10,181 @@
  * 变为无状态，解锁 decoder-lookup-table；移除洗牌噪声。
  */
 
-import * as t from '@babel/types';
-import { traverse } from '@jsseal/ast';
-import { runSealed } from '@jsseal/runtime';
-import { isPoolRotatorStatement } from '@jsseal/detector';
-import { result, type Transform } from './types';
+import * as t from "@babel/types";
+import { traverse } from "@jsseal/ast";
+import { isPoolRotatorStatement } from "@jsseal/detector";
+import { runSealed } from "@jsseal/runtime";
+
+import { result } from "./types";
+import type { Transform } from "./types";
+
+/** `typeof x === "string"` 的边界判别：池终态来自 JSON.parse，运行时形状必须自查 */
+const isStringArray = (value: unknown): value is string[] =>
+  Array.isArray(value) &&
+  value.every((item): item is string => typeof item === "string");
 
 export const freezeStringArray: Transform = {
-  name: 'freeze-string-array',
-  risk: 'unsafe', // 执行求值（封闭运行时）+ 结构替换（锚库验证把关）
+  name: "freeze-string-array",
+  // 执行求值（封闭运行时）+ 结构替换（锚库验证把关）
+  risk: "unsafe",
   async run(ast, ctx) {
     const plan = ctx.detection.obfuscatorIO;
+
     if (!plan || plan.stringArrayNames.length === 0 || !plan.prologueSource) {
-      return result(false, ['no plan']);
+      return result(false, ["no plan"]);
     }
-    const arrName = plan.stringArrayNames[0];
+
+    const [arrName] = plan.stringArrayNames;
 
     // ---------- 1) 求出 rotate 后的池终态 ----------
     const driver = `
 globalThis.__jsseal_ret_raw = JSON.stringify(typeof ${arrName} === 'function' ? ${arrName}() : null);
 `;
+
     let out;
+
     try {
       out = await runSealed({
-        code: plan.prologueSource + '\n' + driver,
-        mode: 'record',
+        code: `${plan.prologueSource}\n${driver}`,
+        mode: "record",
         backend: ctx.backend,
         timeoutMs: ctx.timeoutMs,
         memoryLimitBytes: ctx.memoryLimitBytes,
       });
-    } catch (e) {
-      return result(false, [`pool eval fault: ${(e as Error).message}`]);
+    } catch (error) {
+      // 抛出的值类型未知（runSealed 正常只抛 Error）；非 Error 退回字符串化
+      const message = error instanceof Error ? error.message : String(error);
+
+      return result(false, [`pool eval fault: ${message}`]);
     }
-    if (out.flags.tapeExhausted || out.flags.timeout || out.flags.oom) {
+
+    if (
+      out.flags.tapeExhausted === true ||
+      out.flags.timeout === true ||
+      out.flags.oom === true
+    ) {
       return result(false, [`pool eval fault: ${JSON.stringify(out.flags)}`]);
     }
-    const seeds = out.consumed.random + out.consumed.date + out.consumed.time + out.consumed.crypto;
-    if (seeds > 0) return result(false, [`pool eval consumed ${seeds} seeds — refuse`]);
+
+    const seeds =
+      out.consumed.random +
+      out.consumed.date +
+      out.consumed.time +
+      out.consumed.crypto;
+
+    if (seeds > 0) {
+      return result(false, [`pool eval consumed ${seeds} seeds — refuse`]);
+    }
+
     let pool: unknown;
+
     try {
-      pool = JSON.parse(out.ret ?? 'null');
+      pool = JSON.parse(out.ret ?? "null");
     } catch {
-      return result(false, ['pool eval unparsable']);
+      return result(false, ["pool eval unparsable"]);
     }
-    if (!Array.isArray(pool) || pool.length === 0 || !pool.every((x) => typeof x === 'string')) {
-      return result(false, [`pool shape invalid (len=${Array.isArray(pool) ? pool.length : -1})`]);
+
+    if (!isStringArray(pool) || pool.length === 0) {
+      return result(false, [
+        `pool shape invalid (len=${Array.isArray(pool) ? pool.length : -1})`,
+      ]);
     }
+
+    // 提升为 const：下面的 visitor 是闭包，let 的窄化在闭包里失效，且闭包内不该再变
+    const poolStrings: string[] = pool;
 
     // ---------- 2) 替换字符串数组函数体（保持缓存引用形状） ----------
     let replacedFn = false;
+
     traverse(ast, {
+      // oxlint-disable-next-line sonarjs/function-name -- Babel visitor 键必须是 AST 节点类型名（FunctionDeclaration），改成小驼峰会让该 visitor 永不触发
       FunctionDeclaration(path) {
         const name = path.node.id?.name;
-        if (name !== arrName) return;
-        const cached = path.scope.generateUidIdentifier('frozen');
-        const newArr = t.arrayExpression(pool.map((x) => t.stringLiteral(x as string)));
+
+        if (name !== arrName) {
+          return;
+        }
+
+        const cached = path.scope.generateUidIdentifier("frozen");
+
+        const newArr = t.arrayExpression(
+          poolStrings.map((item) => t.stringLiteral(item))
+        );
+
         path.replaceWith(
           t.functionDeclaration(
             t.identifier(name),
             [],
             t.blockStatement([
-              t.variableDeclaration('var', [t.variableDeclarator(cached, newArr)]),
+              t.variableDeclaration("var", [
+                t.variableDeclarator(cached, newArr),
+              ]),
               t.expressionStatement(
                 t.assignmentExpression(
-                  '=',
+                  "=",
                   t.identifier(name),
-                  t.functionExpression(null, [], t.blockStatement([t.returnStatement(t.identifier(cached.name))])),
-                ),
+                  t.functionExpression(
+                    null,
+                    [],
+                    t.blockStatement([
+                      t.returnStatement(t.identifier(cached.name)),
+                    ])
+                  )
+                )
               ),
               t.returnStatement(t.callExpression(t.identifier(name), [])),
-            ]),
-          ),
+            ])
+          )
         );
         replacedFn = true;
-        path.skip(); /* 防止 visitor 命中自身替换产物（同名函数）导致无限递归 */
+        // 防止 visitor 命中自身替换产物（同名函数）导致无限递归
+        path.skip();
       },
     });
 
     // ---------- 3) 删除池变换器（通用：经典 rotate / sojson for+reverse 等） ----------
-    let removedRotate = 0;
     const poolNameSet = new Set(plan.stringArrayNames);
+    let removedRotate = 0;
+
     traverse(ast, {
+      // oxlint-disable-next-line sonarjs/function-name -- Babel visitor 键必须是 AST 节点类型名（ExpressionStatement），改成小驼峰会让该 visitor 永不触发
       ExpressionStatement(path) {
         if (isPoolRotatorStatement(path.node, poolNameSet)) {
           /* 序列表达式包裹时只删 IIFE 元素（保留同语句其他副作用，如 version_ 重绑） */
           const expr = path.node.expression;
+
           if (t.isSequenceExpression(expr) && expr.expressions.length > 1) {
             const kept = expr.expressions.filter(
-              (e) => !(t.isCallExpression(e) && (t.isFunctionExpression(e.callee) || t.isArrowFunctionExpression(e.callee))),
+              (e) =>
+                !(
+                  t.isCallExpression(e) &&
+                  (t.isFunctionExpression(e.callee) ||
+                    t.isArrowFunctionExpression(e.callee))
+                )
             );
-            if (kept.length === 1) path.replaceWith(t.expressionStatement(kept[0]));
-            else path.node.expression = t.sequenceExpression(kept);
+
+            if (kept.length === 1) {
+              path.replaceWith(t.expressionStatement(kept[0]));
+            } else {
+              path.node.expression = t.sequenceExpression(kept);
+            }
           } else {
             path.remove();
           }
-          removedRotate++;
+
+          removedRotate += 1;
         }
       },
     });
 
-    if (!replacedFn && removedRotate === 0) return result(false, ['nothing to freeze']);
+    if (!replacedFn && removedRotate === 0) {
+      return result(false, ["nothing to freeze"]);
+    }
+
     return result(true, [
-      `pool=${pool.length}`,
+      `pool=${poolStrings.length}`,
       `rotate-removed=${removedRotate}`,
-      replacedFn ? 'array-fn-frozen' : 'array-fn-missing',
+      replacedFn ? "array-fn-frozen" : "array-fn-missing",
     ]);
   },
 };

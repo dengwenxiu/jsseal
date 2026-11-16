@@ -3,7 +3,7 @@
 ## 前置条件
 
 | 依赖 | 版本 | 用途 | 必须 |
-|---|---|---|---|
+| --- | --- | --- | --- |
 | Node.js | ≥ 18 | TypeScript 编译/运行/测试 | ✅ |
 | C 编译器（cc/clang/gcc） | — | 引擎 fork 编译 | 推荐（无则降级 wasm） |
 | Python 3 | — | 部分构建脚本 | ✅ |
@@ -15,7 +15,7 @@ git clone https://github.com/dengwenxiu/jsseal.git && cd jsseal
 npm install                    # 安装依赖（npm workspaces）
 npx tsc -b                     # 编译 TypeScript（8 个包）
 bash engine/build.sh           # 编译 native 引擎（quickjs-ng fork + N-API addon）
-npm test                       # 运行测试（80 个）
+npm test                       # 运行测试（185 个）
 ```
 
 ## 引擎架构
@@ -36,16 +36,16 @@ engine/
 
 ### 引擎修改点（与上游 quickjs-ng 的差异）
 
-| 修改 | 位置 | 目的 |
-|---|---|---|
-| `JSSealSeedState` | `JSContext` 结构 | 四类种子磁带 + 污点纪元 |
-| `js_math_random` 等 | 函数本体拦截 | 录制/重放（不可觉察） |
-| `JS_AddSealCrypto` | 新增函数 | 原生 crypto 注入 |
-| `JSSealTrace` | `JSContext` 结构 | 五类 trace 事件缓冲 |
-| trace 挂点 | `JS_CallInternal` | call/sret/cret/br/go 五类事件 |
-| 分支强制 | `OP_if_true/false` ×4 | 第 k 个执行的条件分支取反 |
-| gas 计量 | `__js_poll_interrupts` | 确定性资源限额 |
-| 虚拟事件循环 | addon C 层 | 微任务⇄定时器交替驱动 |
+| 修改                | 位置                   | 目的                          |
+| ------------------- | ---------------------- | ----------------------------- |
+| `JSSealSeedState`   | `JSContext` 结构       | 四类种子磁带 + 污点纪元       |
+| `js_math_random` 等 | 函数本体拦截           | 录制/重放（不可觉察）         |
+| `JS_AddSealCrypto`  | 新增函数               | 原生 crypto 注入              |
+| `JSSealTrace`       | `JSContext` 结构       | 五类 trace 事件缓冲           |
+| trace 挂点          | `JS_CallInternal`      | call/sret/cret/br/go 五类事件 |
+| 分支强制            | `OP_if_true/false` ×4  | 第 k 个执行的条件分支取反     |
+| gas 计量            | `__js_poll_interrupts` | 确定性资源限额                |
+| 虚拟事件循环        | addon C 层             | 微任务⇄定时器交替驱动         |
 
 ## 多平台
 
@@ -73,13 +73,13 @@ bash engine/build.sh
 
 ### CI 矩阵（.github/workflows/ci.yml）
 
-| 平台 | 引擎 | 说明 |
-|---|---|---|
-| macos-14 (arm64) | native | 全功能 |
-| macos-13 (x64) | native | 全功能 |
-| ubuntu-24.04 (x64) | native | 全功能 |
-| ubuntu-24.04-arm | native | 全功能 |
-| windows-2025 | wasm | 降级模式 |
+| 平台               | 引擎   | 说明     |
+| ------------------ | ------ | -------- |
+| macos-14 (arm64)   | native | 全功能   |
+| macos-13 (x64)     | native | 全功能   |
+| ubuntu-24.04 (x64) | native | 全功能   |
+| ubuntu-24.04-arm   | native | 全功能   |
+| windows-2025       | wasm   | 降级模式 |
 
 ## 排障
 

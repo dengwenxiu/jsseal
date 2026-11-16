@@ -3,17 +3,17 @@
   "version": "0.6.0",
   "private": true,
   "description": "jsseal 浏览器演练场（wasm 后端，零服务器依赖）",
-  "scripts": {
-    "build": "node build.mjs",
-    "serve": "node serve.mjs",
-    "start": "node build.mjs && node serve.mjs"
-  },
+  "homepage": "https://github.com/dengwenxiu/jsseal#readme",
+  "bugs": "https://github.com/dengwenxiu/jsseal/issues",
+  "author": "dengwenxiu",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/dengwenxiu/jsseal.git",
     "directory": "packages/web"
   },
-  "bugs": "https://github.com/dengwenxiu/jsseal/issues",
-  "homepage": "https://github.com/dengwenxiu/jsseal#readme",
-  "author": "dengwenxiu"
+  "scripts": {
+    "build": "node build.mjs",
+    "serve": "node serve.mjs",
+    "start": "node build.mjs && node serve.mjs"
+  }
 }

@@ -1,33 +1,33 @@
 {
   "name": "@jsseal/core",
   "version": "0.6.0",
-  "main": "dist/index.js",
-  "types": "dist/index.d.ts",
-  "dependencies": {
-    "@jsseal/anchors": "0.6.0",
-    "@jsseal/ast": "0.6.0",
-    "@jsseal/detector": "0.6.0",
-    "@jsseal/runtime": "0.6.0",
-    "@jsseal/transforms": "0.6.0",
-    "@jsseal/engine-native": "0.6.0",
-    "@jsseal/env-kit": "0.6.0"
-  },
+  "description": "Governor core for jsseal: verified identity-transform loop with probe API",
+  "homepage": "https://github.com/dengwenxiu/jsseal#readme",
+  "bugs": "https://github.com/dengwenxiu/jsseal/issues",
+  "license": "MIT",
+  "author": "dengwenxiu",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/dengwenxiu/jsseal.git",
     "directory": "packages/core"
   },
-  "bugs": "https://github.com/dengwenxiu/jsseal/issues",
-  "homepage": "https://github.com/dengwenxiu/jsseal#readme",
-  "author": "dengwenxiu",
-  "publishConfig": {
-    "access": "public"
-  },
   "files": [
     "dist/"
   ],
-  "license": "MIT",
-  "description": "Governor core for jsseal: verified identity-transform loop with probe API",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "publishConfig": {
+    "access": "public"
+  },
+  "dependencies": {
+    "@jsseal/anchors": "0.6.0",
+    "@jsseal/ast": "0.6.0",
+    "@jsseal/detector": "0.6.0",
+    "@jsseal/engine-native": "0.6.0",
+    "@jsseal/env-kit": "0.6.0",
+    "@jsseal/runtime": "0.6.0",
+    "@jsseal/transforms": "0.6.0"
+  },
   "engines": {
     "node": ">=18"
   }

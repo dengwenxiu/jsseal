@@ -1,27 +1,27 @@
 {
   "name": "@jsseal/detector",
   "version": "0.6.0",
-  "main": "dist/index.js",
-  "types": "dist/index.d.ts",
-  "dependencies": {
-    "@jsseal/ast": "0.6.0"
-  },
+  "description": "Obfuscation-family detection and triple extraction for jsseal",
+  "homepage": "https://github.com/dengwenxiu/jsseal#readme",
+  "bugs": "https://github.com/dengwenxiu/jsseal/issues",
+  "license": "MIT",
+  "author": "dengwenxiu",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/dengwenxiu/jsseal.git",
     "directory": "packages/detector"
   },
-  "bugs": "https://github.com/dengwenxiu/jsseal/issues",
-  "homepage": "https://github.com/dengwenxiu/jsseal#readme",
-  "author": "dengwenxiu",
-  "publishConfig": {
-    "access": "public"
-  },
   "files": [
     "dist/"
   ],
-  "license": "MIT",
-  "description": "Obfuscation-family detection and triple extraction for jsseal",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "publishConfig": {
+    "access": "public"
+  },
+  "dependencies": {
+    "@jsseal/ast": "0.6.0"
+  },
   "engines": {
     "node": ">=18"
   }

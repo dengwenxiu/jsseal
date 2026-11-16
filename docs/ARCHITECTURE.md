@@ -33,7 +33,7 @@
 ### 1.1 Sealing Prelude（guest 内注入，`prelude.ts`）
 
 | 职责 | 实现 |
-|---|---|
+| --- | --- |
 | 种子拦截 | `Math.random / Date(new Date/now) / performance.now / crypto.getRandomValues/randomUUID` —— record 模式录制原始值入磁带；replay 按调用序取值，耗尽即置 `flags.tapeExhausted` 并抛哨兵错误 |
 | console 劫持 | 全部方法记录 `{level, text}`，text 为 `__canon` 规范化串（key 排序 / NaN / -0 / Error 专序 / 环引用标记） |
 | storage | localStorage/sessionStorage 捕获写入学入输出向量 |
@@ -59,14 +59,12 @@
 
 - **compareOutputs**：ok / ret / thrown / console / storage / consumed（四类种子计数）
   逐字段；flags 为诊断信息不参与相等
-- **验证的双向哨兵**：多消费种子 → 磁带越界（tapeExhausted）；少消费/乱序 →
-  consumed 计数不一致。两者都是屏障破坏，一票否决
+- **验证的双向哨兵**：多消费种子 → 磁带越界（tapeExhausted）；少消费/乱序 → consumed 计数不一致。两者都是屏障破坏，一票否决
 - **自检**：建库时每样本用原代码重放一次，不能复现的样本丢弃（防宿主非确定性）
 
 ## 3. @jsseal/detector（定向类）
 
-字符串特征（packer/jsfuck/jjencode/aaencode/sojson/jsjiami/awsc/webpack）+
-AST 特征（obfuscator.io：字符串数组函数/轮转 IIFE/解码函数/hex 名）。
+字符串特征（packer/jsfuck/jjencode/aaencode/sojson/jsjiami/awsc/webpack）+ AST 特征（obfuscator.io：字符串数组函数/轮转 IIFE/解码函数/hex 名）。
 
 **三件套提取**：按源码切片（stringArray fn + rotate IIFE + decoder），切片在封闭
 运行时独立执行即得可用解码器（函数声明提升保证 IIFE 可先行调用 decoder）。
@@ -106,8 +104,7 @@ strip-antitamper → fold-constants → member-normalize → inline-decoder
 - **corpus 不可用（无法封闭）→ 拒绝一切变换**，原样返回（宪法：没有锚点就没有变换）
 - **buildPins**：函数声明 / var 赋值 / 对象属性与原型方法赋值（selfDefending 的
   检测函数挂在 prototype 上——初版只收 var/function 导致漏 pin，实测教训）
-- 报告：applied / rolledBack（含失败原因）/ missingEnv（自由变量分析=缺环境清单）/
-  sealOverview（种子消费概览）/ finalValidation
+- 报告：applied / rolledBack（含失败原因）/ missingEnv（自由变量分析=缺环境清单）/ sealOverview（种子消费概览）/ finalValidation
 
 ## 6. 测试体系
 
@@ -124,8 +121,7 @@ strip-antitamper → fold-constants → member-normalize → inline-decoder
    是正解（roadmap G）
 2. **对象映射/解码内联的清理均为"尽力而为"**：残留包装依赖链是保守正确行为
    （ob-full 样本字符串未全量内联的原因）
-3. 匿名函数 toString 免疫是启发式（去换行），引擎级 FunctionRegistry（M2 fork
-   quickjs-ng）才是根治
+3. 匿名函数 toString 免疫是启发式（去换行），引擎级 FunctionRegistry（M2 fork quickjs-ng）才是根治
 4. 事件循环确定性（虚拟时钟）、网络 VCR：G 阶段
 5. LLM 结构化微变换接口已预留（Transform 接口 + governor 验证框架天然兼容），未接入
 
@@ -135,7 +131,7 @@ strip-antitamper → fold-constants → member-normalize → inline-decoder
 零安装兜底 + 双后端差异测试，不承载深度插桩特性）。
 
 | 项 | 决策 |
-|---|---|
+| --- | --- |
 | 引擎底座 | fork quickjs-ng（纯 C，C11），补丁只挂稳定挂点：解释器 dispatch 表 / interrupt handler / 字符串构造函数 |
 | 开发环境 | native 上开发：lldb/gdb + ASAN/UBSAN/valgrind；wasm 同步 CI 构建作差异测试（同一磁带双后端重放必须一致） |
 | 插桩能力（native 独占） | opcode 级 trace（C 侧 ring buffer + 批量导出，禁止每事件一次跨边界调用）、gas 计量、原生污点传播、guest 不可觉察的种子拦截 |
@@ -154,7 +150,7 @@ strip-antitamper → fold-constants → member-normalize → inline-decoder
 ### 已落地
 
 | 能力 | 实现 |
-|---|---|
+| --- | --- |
 | native 引擎 | `engine/quickjs`（quickjs-ng fork）+ `engine/addon/jsseal_engine.c`（N-API，`engine/build.sh` 编译）→ `@jsseal/engine-native` |
 | 引擎级种子拦截 | `JSContext.jsseal_seeds`：mode + 四类磁带（random/date/time/crypto）。拦截点：`js_math_random`（xorshift64star）、`date_now(ctx)`（含 `new Date()` 无参构造与 `Date.now()`）、`js_perf_now`、原生 crypto（`JS_AddSealCrypto`：C 实现 getRandomValues/randomUUID，独立 crypto 磁带） |
 | C API | `JS_SetSealSeedMode / JS_SetSealSeedTape / JS_GetSealSeedTape / JS_GetSealSeedConsumed / JS_GetSealSeedExhausted / JS_AddSealCrypto` |
@@ -187,7 +183,7 @@ prelude（第一层，兼容层）：console / storage / toString pins / 定时�
 ### 引擎能力
 
 | 能力 | 实现 |
-|---|---|
+| --- | --- |
 | **gas 计量** | 挂 `__js_poll_interrupts`（每 10000 ops 一单位），限额在 prelude 之后生效（prelude 开销不计入 guest）。超限抛 `jsseal_gas_exhausted` → `flags.gasExhausted`。**确定性资源上限**——壁钟超时作为副线保留（gas 是主限制的确定语义版本） |
 | **call 事件** | `has_call_argc:`（OP_call0-3/OP_call/OP_tail_call）与 OP_call_method 两个挂点，记录 {fn, argc} |
 | **sret 事件** | 调用返回处（非异常路径）ret_val 为字符串时记录 {fn, v}（截断 512）——**解码器输出捕获的引擎级版本** |
@@ -219,7 +215,7 @@ trace 驱动变换：sret 事件按 fn 聚合 → 解码器动态输出表 → �
 ### 新引擎能力
 
 | 能力 | 实现 |
-|---|---|
+| --- | --- |
 | **cret 事件** | 调用返回处记录 `{fn, args[], v}`（实参+返回值均限原始类型，argc≤8，任一非原始则跳过）；`JSSEAL_TRACE_CALL_ARGS`(bit2) |
 | **cret 函数名白名单** | `JS_SetTraceCretFnFilter`（≤8 个名字）——过滤 rotate 洗牌循环等初始化噪声（实测：无过滤时洗牌循环数万次迭代×十余调用直接灌爆 20 万事件上限，解码事实全被截断） |
 | **trace 窗口** | 仅覆盖用户代码执行（prelude/dump 内部调用不计——prelude 的 console 封装与 dump 的逐字符序列化同样会灌爆上限） |
@@ -233,7 +229,7 @@ strip-antitamper → fold → member → freeze-string-array → inline-decoder
 ```
 
 | 变换 | 机制 |
-|---|---|
+| --- | --- |
 | **freeze-string-array** | 封闭运行时执行三件套 prologue → 读出 rotate 后池终态 → 数组函数替换为"返回终态字面量（缓存引用形状）" + 删除 rotate IIFE。**消除 decoder 的洗牌期时变性**——rotate 的唯一可观测效应就是池重排，固化后恒等（锚库验证） |
 | **decoder-lookup-table** | 全锚点采样 cret → 聚合 `(fn → argsKey → v)` 表（同 args 不同 v 判非确定放弃）→ decoder 体替换为 `switch(键表达式) { case: return 字面量; default: return 原实现 }`——已观测输入走表、未观测走原实现，对无状态 decoder 恒等 |
 
@@ -265,7 +261,7 @@ conflict 即放弃的保守性（_0xd15c 在 freeze 之前被判 conflicted）�
 ### 新引擎能力
 
 | 能力 | 实现 |
-|---|---|
+| --- | --- |
 | **br 事件** | `JSSEAL_TRACE_BRANCH`(bit3)。挂点：OP_goto/goto16/goto8/if_true/if_false 五处，`find_line_num`（pc2line）取行号，`{k:'br', fn, l}`。复用函数名白名单（支持 `(anonymous)` 匹配匿名函数） |
 | 关键发现 | quickjs 把字符串 switch 编译为**查找表 + goto**（无顺序比较 ladder）——每次分发的 loop-back goto 恰好落在被命中 case 的行区间 → **goto 行序列即 case 命中序**，无需复杂重建 |
 
@@ -306,8 +302,7 @@ fixture `cff-dynamic.js`（getOrder() 返回顺序串）：命中序 `2>0>1>3` �
 
 - 全部 native 专属用例改为引擎可用性守卫（`isEngineAvailable() ? it : it.skip`）——
   无 native 二进制的环境（Windows CI）自动降级 wasm 后端跑全量
-- `.github/workflows/ci.yml`：macos-14(arm64)/macos-13(x64)/ubuntu-24.04(x64)/
-  ubuntu-24.04-arm/windows-2025 矩阵；Windows 暂只跑 wasm（build.sh 为 cc/clang 系，
+- `.github/workflows/ci.yml`：macos-14(arm64)/macos-13(x64)/ubuntu-24.04(x64)/ ubuntu-24.04-arm/windows-2025 矩阵；Windows 暂只跑 wasm（build.sh 为 cc/clang 系，
   MSVC 适配列入待办）
 - 55/55 全绿
 
@@ -326,8 +321,7 @@ JSSealSeedState.epoch：四个种子拦截点（random/date/time/crypto）每次
 
 - **replay 模式同样递增**——感染的是计算形态，与磁带模式无关（实测 record/replay
   污点序列逐位一致）
-- 消费者：decoder-lookup-table 跳过感染条目（`tainted-skipped` 计入 notes）——
-  "感染即不可常量化"从启发式变成引擎事实；未来 execute-and-inline / T0/T1 纯度
+- 消费者：decoder-lookup-table 跳过感染条目（`tainted-skipped` 计入 notes）—— "感染即不可常量化"从启发式变成引擎事实；未来 execute-and-inline / T0/T1 纯度
   分级直接消费此标志
 - 已知限制：cret 仅覆盖 argc∈[1,8] 且参数全原始类型的调用（argc=0 的函数无 cret，
   污点不可见——后续可加无参 cret 变体）
@@ -382,8 +376,7 @@ CLI：`--net-fixture url=body` 或 `url=status::body`（可多次）。
 
 ### 语义
 
-网络从此进入封闭模型：含 XHR/fetch 的风控样本可采样、可锚定、可恒等验证——
-**变换改变了请求（URL/body）会被锚库当场拦截**（netLog 参与 compareOutputs）。
+网络从此进入封闭模型：含 XHR/fetch 的风控样本可采样、可锚定、可恒等验证—— **变换改变了请求（URL/body）会被锚库当场拦截**（netLog 参与 compareOutputs）。
 逆向价值：`report.netLog` 直接回答"这个样本对外发了什么"。
 
 ### 65/65 全绿（含：罐头确定性/fixture 命中/netMisses/锚库拦截 URL 变化）
@@ -459,8 +452,7 @@ v1 仅记录报告，构造器链的静态回填列入后续。
 
 - **形态 A（静态）**：`X["constructor"]("payload")()` → payload 内联——字符串字面量
   直接回填，无需探针
-- **形态 B（JSFuck 全编码）**：AST 判定"子树内无任何 Identifier/StringLiteral/
-  NumericLiteral"（方法名全部动态构造的结构特征）→ evalLog 的 `[Function] body`
+- **形态 B（JSFuck 全编码）**：AST 判定"子树内无任何 Identifier/StringLiteral/ NumericLiteral"（方法名全部动态构造的结构特征）→ evalLog 的 `[Function] body`
   事实按序对应回填（多锚点一致性校验）
 - 仅处理"立即调用"形态；赋值/传参形态跳过
 - 实测：`[]["filter"]["constructor"]("console.log('CTOR_CHAIN_OK')")()` → 明文回归 + 恒等
@@ -495,7 +487,7 @@ console 流 | eval/Function 生成码 | 网络请求(netLog) | 缺流量(netMiss
 ### 真实样本（echo094/decode-js 采集 + synchrony 官方测试样本）
 
 | 样本 | 结果 | 产出修复 |
-|---|---|---|
+| --- | --- | --- |
 | obfuscator-io.js（synchrony 官方，20K） | ✅ 20K→8.4K，行为恒等 | 验证了野外兼容性 |
 | sojsonv7.js（101K） | 🔶 池 5501 条固化可见；明文还原度低（有 WARNING 如实告知） | 4 项：混合元素数组/标记不短路/prologue 自包含/逐键时间性冲突 |
 | jsconfuser.js（10K） | 🔶 家族已识别；状态机 CFF 未实现（膨胀 32% 有 WARNING） | jsconfuser 签名识别 |
@@ -550,8 +542,6 @@ jsconfuser:     while(sum(states) !== 终值) { switch(sum(states)) { case N: ..
 (key,start,length)→v 调用对，按序静态回填（实测 4/4）。作用域伪装属性名
 （'xuswZB'/'VLT7SR'/'Jn1uMOC'）明文回归。
 
-
-
 ## 23. jsconfuser 状态机 CFF 攻坚成功（2026-10-31，v0.4.0）
 
 ### 实现路径
@@ -586,7 +576,7 @@ console.log(target(3,4)) 明文回归，行为恒等 PASS。
 ### 三个真实野外样本全部 ✅
 
 | 样本 | 大小 | 家族 |
-|---|---|---|
+| --- | --- | --- |
 | synchrony 官方 obfuscator-io.js | 20K→8.4K (-59%) | obfuscator.io |
 | sojsonv7/sample_189.js | 101K（池5501固化+轮转删+inline） | sojson v7 |
 | jsconfuser/control-flow-flattening.js | 10K→3.2K (-69%) | jsconfuser |
@@ -604,6 +594,7 @@ console.log(target(3,4)) 明文回归，行为恒等 PASS。
 ### AST 分支指纹（`branch-fingerprint.ts`）+ 强制锚定集成
 
 指纹 = 分支测试表达式打印文本（去空白）。性质：
+
 - beautify/格式化后**稳定**（恒等变换不改语义内容）
 - 死代码消除后存活分支**不变**（序号自动迁移 via `buildMigration`）
 - 标识符重命名后**变化**（保守不映射——安全降级）
@@ -645,8 +636,7 @@ console.log(target(3,4)) 明文回归，行为恒等 PASS。
 字符串第 2 位）。**原生格式必须实测**：quickjs-ng 是 `function fill() {[native code]}`
 （V8 是 `{ [native code] }`，空格不同 → 字符索引全错）。
 
-实测：2.8K 全编码 `console.log(1337)` → `folded=3 evaluated=5 failed=2` → 49B 形态 A
-→ 18B 明文，PASS。支持矩阵 JSFuck 🔶→✅（escape 扩展字符集：引号/反斜杠未覆盖）。
+实测：2.8K 全编码 `console.log(1337)` → `folded=3 evaluated=5 failed=2` → 49B 形态 A → 18B 明文，PASS。支持矩阵 JSFuck 🔶→✅（escape 扩展字符集：引号/反斜杠未覆盖）。
 
 ## 26. 混淆器矩阵压力测试（2026-10-31，实战第二波）
 
@@ -654,14 +644,12 @@ console.log(target(3,4)) 明文回归，行为恒等 PASS。
 已固化为 matrix.obfuscators.test.ts 回归）：
 
 - **javascript-obfuscator 4.2.2：15/15 完全成功**（PASS + SECRET 可见 + 零回滚）
-  含 rc4/shuffle/rotate/cff/deadcode/selfDefending/debugProtection/transformObjectKeys/
-  splitStrings/stringArrayCallsTransform 及 all-on 组合
+  含 rc4/shuffle/rotate/cff/deadcode/selfDefending/debugProtection/transformObjectKeys/ splitStrings/stringArrayCallsTransform 及 all-on 组合
 - **js-confuser 2.1.3：17/21**，暴露两代机制更替：
   - **stringConcealing 已换代**：不再是 %95 XOR，而是 Base91 变体
     （table.indexOf + `v+=p*91` 位打包 → UTF-8 buffer）。新变换
     `jsconfuser-strings`：AST 骨架检测（`F(s,l){return D(ANY[slice](s,s+l))}`，
-    属性计算表达式也要认——preset minify 会把 "slice" 藏进常量表）+
-    cret trace 白名单采集 (args→v) + 跨锚点投票一致才回填
+    属性计算表达式也要认——preset minify 会把 "slice" 藏进常量表）+ cret trace 白名单采集 (args→v) + 跨锚点投票一致才回填
   - **xor 按序回填被击落**：2.1.3 的 xor 调用是 scope 计算键，执行序 ≠ AST 遍历
     序 → 错填 → TypeError 被锚库拦截（宪法工作正常的又一例证）。修复：按
     (start,length) 字面量对分组，**组内全一致才回填**，歧义组整组放弃
@@ -671,11 +659,11 @@ console.log(target(3,4)) 明文回归，行为恒等 PASS。
     分发器，无字面量调用点可回填——已知边界，列入 roadmap
 
 ### 踩坑
+
 - js-confuser 的 `obfuscate()` 返回 `{code}` 对象不是字符串
 - cret trace 白名单要用产物里的实际函数名（每次生成随机）
 - **矩阵要固化为测试**：脚本跑一次的结论会随随机种子漂移（xor 组唯一性），
   回归测试锚定"必须 PASS"硬约束 + 已知边界白名单豁免软约束
-
 
 ## 27. Web playground（2026-10-31，浏览器内全管线）
 
@@ -684,6 +672,7 @@ console.log(target(3,4)) 明文回归，行为恒等 PASS。
 obfuscator.io 池样本 PASS 156ms、probe 16ms。
 
 ### 浏览器适配踩坑（4 个）
+
 1. `process is not defined`——Babel 33 处 `process.env.BABEL_*` 探测 → banner 注入
    最小 process stub（env 空对象即可，查不到走默认分支）
 2. **quickjs-emscripten 默认 @jitl/wasmfile 变体需要独立 .wasm 文件**（bundle 里
@@ -691,13 +680,13 @@ obfuscator.io 池样本 PASS 156ms、probe 16ms。
    bundle +0.6MB）
 3. `@jsseal/engine-native` 的 .node require → alias 到 `isEngineAvailable=false` stub；
    `node:vm`（nodevm 后端）→ throw stub；`node:crypto`（ast 的 sha256 缓存键）→ FNV shim
-4. **shim 手滑**：`{ update, digest }` shorthand 引用方法名当变量名 →
-   `update is not defined`（对象方法名不是作用域绑定——esbuild 不做类型检查，
+4. **shim 手滑**：`{ update, digest }` shorthand 引用方法名当变量名 → `update is not defined`（对象方法名不是作用域绑定——esbuild 不做类型检查，
    手写 shim 要自测）
 
 ## 28. 局部函数纯化 purify-closures（2026-11-10，POSITIONING §5.1 落地）
 
 闭包捕获使局部函数不纯 → 两条等价策略显式化依赖：
+
 - **提升**：捕获是单赋值（binding.constant）且初始化"位置无关纯"（字面量/
   模块级引用的组合）→ 声明与函数搬移到模块顶层（**通过提升变量作用域消除
   不纯**）。提升有级联效应：兄弟函数提升后，原本捕获它的函数自动 top-pure。
@@ -710,6 +699,7 @@ obfuscator.io 池样本 PASS 156ms、probe 16ms。
 局部 shadow 的错位：闭包看外层、实参传 shadow）。
 
 ### 踩坑
+
 - **递归自引用不是捕获**：`rec(i-1)` 使 rec 进入自由变量集合，binding 解析
   到声明处（祖先函数作用域）→ 被分类为"可提升的兄弟函数"→ applyJob 把 F
   自己 remove 后又执行 F 提升 → NodePath double-remove 崩溃。修复：自由变量
@@ -726,8 +716,8 @@ top-pure 函数（自由变量全部解析到模块级**单赋值**绑定）+ �
 时直接折出明文——decoder-lookup-table 的泛化。
 
 ### 静态门卫（保守）
-- 写目标（赋值/自增/delete）根标识符必须 F 内绑定；禁 this/arguments/eval/
-  new/with/yield/标签模板
+
+- 写目标（赋值/自增/delete）根标识符必须 F 内绑定；禁 this/arguments/eval/ new/with/yield/标签模板
 - 调用白名单：纯内建（Math.* 除 random / String.fromCharCode / 字符串数组
   只读方法 / JSON.parse）或候选集内模块函数（**不动点收敛**：decode 调
   bufferToString 则两者同时通过/出局）
@@ -735,17 +725,17 @@ top-pure 函数（自由变量全部解析到模块级**单赋值**绑定）+ �
 - 名字不逃逸 + 同绑定校验；种子有序屏障由白名单天然保证（Math.random 不在）
 
 ### 踩坑：折叠方向
+
 inline-decoder 内联后源码里有明文 `encrypt("hello world")`——直接折叠会把它
 **求值回密文** `"; />*t($75;"`（行为恒等 ✓ 但还原度负优化，e2e 明文回归断言
 击落）。修复：**方向守卫**——字符串字面量入参 + 字符串返回（加密函数典型
-形态）不折；索引型 decoder（数字入参）照常。另：walk 必须区分位置——
-`String.fromCharCode` 的属性名被当自由标识符会误拒候选。
+形态）不折；索引型 decoder（数字入参）照常。另：walk 必须区分位置—— `String.fromCharCode` 的属性名被当自由标识符会误拒候选。
 
 ## 30. 纯化闭环收尾：propagate-constants + prune-dead-decls（2026-11-10）
 
 purify → fold 的配套两环，三变换链 `传播 → 折叠 → 清理` 完整落地：
-- **propagate-constants**：单赋值字面量局部变量内联。解锁器——`var c="<密文>";
-  decrypt(c)` 经内联变为全字面量调用点，fold 才能继续折出明文。
+
+- **propagate-constants**：单赋值字面量局部变量内联。解锁器——`var c="<密文>"; decrypt(c)` 经内联变为全字面量调用点，fold 才能继续折出明文。
 - **prune-dead-decls**：fold 折完全部调用点后死函数/死池的家族无关清理
   （不动点：删 A 使 B 也不再被引用）。防误删：eval/new Function 出现即弃；
   `globalThis[k]` 类全局对象动态访问即弃（间接引用静态不可见）。
@@ -754,6 +744,7 @@ purify → fold 的配套两环，三变换链 `传播 → 折叠 → 清理` �
   的解密方向；加密方向（明文入参）仍拦截。实测 XOR 密文→hello world 正确放行。
 
 ### 踩坑（3 个，都很典型）
+
 1. **code↔offsets 不变式**：同轮前置变换（传播）改过 AST 后，node.start
    与重打印文本错位——fold 用 ctx.code.slice(start,end) 切调用点切出残缺
    片段，驱动直接 SyntaxError。修复：generate(call) 现场打印，不依赖偏移。
@@ -765,6 +756,7 @@ purify → fold 的配套两环，三变换链 `传播 → 折叠 → 清理` �
    全局对象的访问出现即整体放弃；真实生效的动态引用另有锚库兜底。
 
 ### 战果
+
 cff-dynamic fixture 产物从"顺序正确的语句序列"进一步折叠为**单字面量
 `"bacd"`**（拼接链全求值 + 函数全清理）——比原测试断言的还原目标更彻底，
 两个 e2e 断言升级以匹配更优产物。
@@ -777,8 +769,7 @@ cff-dynamic fixture 产物从"顺序正确的语句序列"进一步折叠为**�
 
 - 分块：模块顶层函数逐个送审（prompt 小、失败隔离、回滚粒度细）
 - 形态校验：输出必须可解析且为单一 FunctionDeclaration（剥 markdown 围栏）
-- provider：mock（确定性 `x = x + 1`→`x += 1` 恒等简化）/openai/anthropic/
-  ollama/**custom**（`(code)=>Promise<string>` 任意 LLM 服务注入点）
+- provider：mock（确定性 `x = x + 1`→`x += 1` 恒等简化）/openai/anthropic/ ollama/**custom**（`(code)=>Promise<string>` 任意 LLM 服务注入点）
 - e2e 双侧证明：恒等提案被应用（产物含 `+=` 且 PASS）；**恶意提案**
   （custom 注入 `return x + t + 100` 改行为）被锚库回滚、产物不含恶意码、
   终验 PASS——裁决侧的实证
@@ -798,12 +789,12 @@ cff-dynamic fixture 产物从"顺序正确的语句序列"进一步折叠为**�
 - CLI `env-audit` + probe 集成（envAudit 字段/人类可读摘要）
 
 ### prelude 环境层升级（拟真形态）
-平面对象 → `Object.create(Ctor.prototype)` + 原型 getter +
-`Symbol.toStringTag` 内部槽 + `window.chrome`（Chrome 系 UA）+ 视口/DPR/
-Notification/permissions/userAgentData/indexedDB。
+
+平面对象 → `Object.create(Ctor.prototype)` + 原型 getter + `Symbol.toStringTag` 内部槽 + `window.chrome`（Chrome 系 UA）+ 视口/DPR/ Notification/permissions/userAgentData/indexedDB。
 自审 30/43 → **42/43**（3 个 high 清零；遗留 Intl 时区=quickjs 引擎边界，诚实留档）。
 
 ### 两个意外收获
+
 - **sloppy 赋值静默失败与真浏览器一致**：`navigator.webdriver = true` 在原型
   getter 无 setter 时不生效不抛错——拟真形态的副作用恰好是浏览器真行为，
   篡改须 defineProperty（测试如实改为 defineProperty 形态）
@@ -815,8 +806,8 @@ v1 的三问题：fps[k-1] 概念混用（k=执行序、fps=静态源码序）�
 恒等改写下失配（覆盖缩水）；验证退化 ok-only（序号漂移下全比对必误报）。
 
 v2 结构锚 =（形状签名, 函数提示, 出现次序, 执行出现次序）：
-- **形状签名**：递归节点类型签名，字面量占位 `#`、标识符占位 `_`——
-  `x>0x10` 与 `value>16` 同签名；常量折叠（`8*2`→16）保守失配（丢锚不误锚）
+
+- **形状签名**：递归节点类型签名，字面量占位 `#`、标识符占位 `_`—— `x>0x10` 与 `value>16` 同签名；常量折叠（`8*2`→16）保守失配（丢锚不误锚）
 - **执行序↔AST 打通**：锚构建时 forceBranchIndex k + br trace——第 k 个
   br 事件的（行号, 该行第 m 次执行）→ 原 AST 精确定位节点；迁移时候选代码
   跑无强制 br trace → resolveForceIndex 重算新执行序
@@ -824,6 +815,7 @@ v2 结构锚 =（形状签名, 函数提示, 出现次序, 执行出现次序）
   失败 → 丢锚；无锚 → ok-only（v1 兼容）
 
 ### 踩坑：±1 行号容差劫持锚
+
 初版行匹配带 ±1 容差（想容忍打印格式差异）——紧凑代码里相邻行分支
 （行2/行3）被容差劫持到邻居分支：sig 从此错位，强制施加到错误分支，
 全比对必失败，把 fold 系好变换误报回滚（实测 folded 样本双 fold 被杀）。
@@ -838,12 +830,10 @@ v2 结构锚 =（形状签名, 函数提示, 出现次序, 执行出现次序）
 三个需求一次收敛：探测 API 使用（补环境视角）、console 被封闭后的打印
 通道、以及通道本身不可被 guest 探知（开源特征会被抓）。
 
-- **instrument 闭包旁路**：`(function(dbg){...})(hidden.dbg)` 宿主注入——
-  dbg 不在任何全局对象上，guest 枚举无从发现（开源也无特征可抓：名字
+- **instrument 闭包旁路**：`(function(dbg){...})(hidden.dbg)` 宿主注入—— dbg 不在任何全局对象上，guest 枚举无从发现（开源也无特征可抓：名字
   只存在于宿主拼装的闭包形参）。debugLog 通道不进锚库向量；插桩抛错
   容错（`[instrument] error:` 记录，业务代码照常运行）。
-- **envTrace 访问图谱**：Proxy get 全量计数——envMisses（摸到缺）/
-  envAccesses（探测面地图）/ envAudit（环境对不对）三层感知。
+- **envTrace 访问图谱**：Proxy get 全量计数——envMisses（摸到缺）/ envAccesses（探测面地图）/ envAudit（环境对不对）三层感知。
 - **反探测分级**（诚实路线）：①非枚举化（本轮，杀 keys/for-in/stringify
   三向量+认知库哨兵 behav-hidden-state-enum）②随机化内部名（杀 ownNames
   直接探测——需动 addon C 硬编码契约）③闭包化状态（宿主持有接口对象，

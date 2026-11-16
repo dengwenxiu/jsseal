@@ -8,13 +8,15 @@
  * 3. 回归基线：同一浏览器版本升级前后对比，感知检测面变化
  */
 
-import { KNOWLEDGE } from './knowledge';
+import { KNOWLEDGE } from "./knowledge";
 
 /** 生成可在浏览器控制台直接粘贴执行的采集脚本 */
-export function buildCaptureScript(profileName = 'browser'): string {
+export const buildCaptureScript = (profileName = "browser"): string => {
   const entries = KNOWLEDGE.map(
-    (k) => `  ${JSON.stringify(k.id)}: (function(){ try { var v = (${k.capture}); return v === undefined ? null : v; } catch (e) { return 'CAPTURE_ERROR'; } })(),`,
+    (k) =>
+      `  ${JSON.stringify(k.id)}: (function(){ try { var v = (${k.capture}); return v === undefined ? null : v; } catch (e) { return 'CAPTURE_ERROR'; } })(),`
   );
+
   return [
     `(function () {`,
     `  var snapshot = {`,
@@ -30,5 +32,5 @@ export function buildCaptureScript(profileName = 'browser'): string {
     `  a.click();`,
     `  console.log('env snapshot downloaded:', snapshot.__profile);`,
     `})();`,
-  ].join('\n');
-}
+  ].join("\n");
+};

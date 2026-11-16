@@ -1,31 +1,32 @@
 #!/usr/bin/env node
+/* oxlint-disable typescript/no-unsafe-call, typescript/no-unsafe-assignment, typescript/no-unsafe-member-access -- packages/web 无 tsconfig（不参与 tsc -b），类型感知检查解析不到 node: 内置模块类型，本文件的 fs/path/esbuild 调用一律被当作 error 类型；这是构建脚本的既有形态，修它需要新增 tsconfig，超出反混淆器源码范围 */
+import { cpSync, mkdirSync } from "node:fs";
+import path from "node:path";
+
 /** esbuild 打包：@jsseal/core + quickjs-emscripten(wasm 内嵌) → 单 JS */
-import { build } from 'esbuild';
-import { cpSync, mkdirSync } from 'node:fs';
-import { fileURLToPath } from 'node:url';
-import { dirname, resolve } from 'node:path';
+import { build } from "esbuild";
 
-const root = resolve(dirname(fileURLToPath(import.meta.url)), '../..');
-const web = resolve(root, 'packages/web');
+const root = path.resolve(import.meta.dirname, "../..");
+const web = path.resolve(root, "packages/web");
 
-mkdirSync(resolve(web, 'dist'), { recursive: true });
+mkdirSync(path.resolve(web, "dist"), { recursive: true });
 
 await build({
-  entryPoints: [resolve(web, 'src/main.ts')],
+  entryPoints: [path.resolve(web, "src/main.ts")],
   bundle: true,
-  format: 'esm',
-  target: 'es2020',
-  platform: 'browser',
+  format: "esm",
+  target: "es2020",
+  platform: "browser",
   minify: true,
-  outfile: resolve(web, 'dist/main.js'),
-  legalComments: 'none',
-  logLevel: 'info',
+  outfile: path.resolve(web, "dist/main.js"),
+  legalComments: "none",
+  logLevel: "info",
   alias: {
-    '@jsseal/engine-native': resolve(web, 'shims/engine-native.ts'),
-    'node:crypto': resolve(web, 'shims/node-crypto.ts'),
-    crypto: resolve(web, 'shims/node-crypto.ts'),
-    'node:vm': resolve(web, 'shims/node-vm.ts'),
-    'quickjs-emscripten': resolve(web, 'shims/quickjs-emscripten.ts'),
+    "@jsseal/engine-native": path.resolve(web, "shims/engine-native.ts"),
+    "node:crypto": path.resolve(web, "shims/node-crypto.ts"),
+    crypto: path.resolve(web, "shims/node-crypto.ts"),
+    "node:vm": path.resolve(web, "shims/node-vm.ts"),
+    "quickjs-emscripten": path.resolve(web, "shims/quickjs-emscripten.ts"),
   },
   // Babel/emscripten 的 Node 环境探测（process.env.BABEL_* 等 33+ 处）——
   // env 查不到走默认分支即可，stub 足够
@@ -35,14 +36,28 @@ await build({
 });
 
 // 内置样本（小体积真实样本，便于演示）
-cpSync(resolve(web, 'index.html'), resolve(web, 'dist/index.html'));
-mkdirSync(resolve(web, 'dist/samples'), { recursive: true });
-for (const f of ['jsfuck.js', 'packer-basic.js', 'ob-stringarray-base64.js', 'ctor-chain.js']) {
+cpSync(path.resolve(web, "index.html"), path.resolve(web, "dist/index.html"));
+
+mkdirSync(path.resolve(web, "dist/samples"), { recursive: true });
+
+for (const f of [
+  "jsfuck.js",
+  "packer-basic.js",
+  "ob-stringarray-base64.js",
+  "ctor-chain.js",
+]) {
   try {
-    cpSync(resolve(root, `packages/transforms/fixtures/${f}`), resolve(web, `dist/samples/${f}`));
-    cpSync(resolve(root, 'samples/jsfuck.js'), resolve(web, 'dist/samples/jsfuck.js'));
+    cpSync(
+      path.resolve(root, `packages/transforms/fixtures/${f}`),
+      path.resolve(web, `dist/samples/${f}`)
+    );
+    cpSync(
+      path.resolve(root, "samples/jsfuck.js"),
+      path.resolve(web, "dist/samples/jsfuck.js")
+    );
   } catch {
     /* fixture 缺失则跳过 */
   }
 }
-console.log('playground 构建完成: packages/web/dist/');
+
+console.log("playground 构建完成: packages/web/dist/");
